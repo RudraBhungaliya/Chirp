@@ -86,6 +86,7 @@ export default function ChatWindow({ chat }) {
       text: input,
       file: null,
       deleted: false,
+      seen: false,
       timestamp: Date.now(),
     });
 
@@ -122,6 +123,7 @@ export default function ChatWindow({ chat }) {
         mime: file.type,
       },
       deleted: false,
+      seen: false,
       timestamp: Date.now(),
     });
 
@@ -143,6 +145,25 @@ export default function ChatWindow({ chat }) {
     setMessages(updated);
     await localforage.setItem(`messages:${chat.id}`, updated);
   };
+
+  useEffect(() => {
+    if (!chat || messages.length === 0) return;
+
+    let changed = false;
+
+    const updated = messages.map((m) => {
+      if (m.sender === "me" && m.seen === false) {
+        changed = true;
+        return { ...m, seen: true };
+      }
+      return m;
+    });
+
+    if (changed) {
+      setMessages(updated);
+      localforage.setItem(`message:${chat.id}`, updated);
+    }
+  }, [chat]);
 
   const renderMessage = (msg) => {
     if (msg.deleted)
@@ -275,8 +296,12 @@ export default function ChatWindow({ chat }) {
     }`}
                       >
                         {renderMessage(msg)}
-                        <div className="mt-1 text-[10px] text-right opacity-70">
-                          {formatTime(msg.timestamp)}
+                        <div className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-70">
+                          <span>{formatTime(msg.timestamp)}</span>
+
+                          {msg.sender === "me" && (
+                            <span>{msg.seen ? "✓✓" : "✓"}</span>
+                          )}
                         </div>
                       </div>
                     </div>
