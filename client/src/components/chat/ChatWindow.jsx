@@ -27,6 +27,10 @@ const fileToBase64 = (file) => {
 };
 
 const base64ToBlobUrl = (base64, mime) => {
+  if (!base64 || typeof base64 !== "string" || !base64.includes(",")) {
+    return null;
+  }
+
   const byteString = atob(base64.split(",")[1]);
   const ab = new ArrayBuffer(byteString.length);
   const ia = new Uint8Array(ab);
@@ -35,7 +39,7 @@ const base64ToBlobUrl = (base64, mime) => {
     ia[i] = byteString.charCodeAt(i);
   }
 
-  const blob = new Blob([ab], { type: mime });
+  const blob = new Blob([ab], { type: mime || "application/octet-stream" });
   return URL.createObjectURL(blob);
 };
 
@@ -55,8 +59,8 @@ export default function ChatWindow({ chat }) {
     }
     localforage.getItem(`messages:${chat.id}`).then((m) => {
       const normalized = (m || []).map((msg) => ({
-        sender: "me",
         ...msg,
+        sender: msg.sender ?? "me",
       }));
       setMessages(normalized);
     });
@@ -151,18 +155,15 @@ export default function ChatWindow({ chat }) {
     if (!msg.file) return "Unsupported message";
 
     if (msg.type === "image") {
-      const blobUrl = base64ToBlobUrl(msg.file.data, msg.file.mime);
+      const blobUrl = base64ToBlobUrl(msg.file?.data, msg.file?.mime);
+      if (!blobUrl)
+        return <span className="text-gray-400">[Broken image]</span>;
 
       return (
-        <a
-          href={blobUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-block"
-        >
+        <a href={blobUrl} target="_blank" rel="noopener noreferrer">
           <img
             src={blobUrl}
-            className="rounded-lg max-w-[360px] max-h-[260px] object-cover cursor-pointer"
+            className="rounded-lg max-w-[360px] max-h-[260px] object-cover"
           />
         </a>
       );
@@ -185,7 +186,9 @@ export default function ChatWindow({ chat }) {
         </audio>
       );
 
-    const blobUrl = base64ToBlobUrl(msg.file.data, msg.file.mime);
+    const blobUrl = base64ToBlobUrl(msg.file?.data, msg.file?.mime);
+    if (!blobUrl)
+      return <span className="text-gray-400">[Broken attachment]</span>;
 
     return (
       <div className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50 max-w-[280px]">
@@ -217,10 +220,10 @@ export default function ChatWindow({ chat }) {
         {chat ? (
           <>
             <div className="w-9 h-9 rounded-full bg-[#E4E6EB] flex items-center justify-center border border-black/40">
-              {chat.name[0]}
+              {(chat.name || "?")[0]}
             </div>
 
-            {chat.name}
+            {chat.name || "Unknown"}
           </>
         ) : (
           "Chirp"
