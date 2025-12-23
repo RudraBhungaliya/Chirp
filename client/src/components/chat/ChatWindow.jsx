@@ -26,6 +26,19 @@ const fileToBase64 = (file) => {
   });
 };
 
+const base64ToBlobUrl = (base64, mime) => {
+  const byteString = atob(base64.split(",")[1]);
+  const ab = new ArrayBuffer(byteString.length);
+  const ia = new Uint8Array(ab);
+
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i);
+  }
+
+  const blob = new Blob([ab], { type: mime });
+  return URL.createObjectURL(blob);
+};
+
 export default function ChatWindow({ chat }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -35,7 +48,6 @@ export default function ChatWindow({ chat }) {
   const fileInputRef = useRef(null);
   const fileTypeRef = useRef("document");
 
-  /* LOAD */
   useEffect(() => {
     if (!chat) {
       setMessages([]);
@@ -54,14 +66,12 @@ export default function ChatWindow({ chat }) {
     bottomRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages]);
 
-  /* CORE PUSH */
   const pushMessage = async (msg) => {
     const updated = [...messages, msg];
     setMessages(updated);
     await localforage.setItem(`messages:${chat.id}`, updated);
   };
 
-  /* TEXT */
   const sendText = async () => {
     if (!input.trim() || !chat) return;
 
@@ -78,7 +88,6 @@ export default function ChatWindow({ chat }) {
     setInput("");
   };
 
-  /* FILE */
   const handleFileSelect = async (e) => {
     const file = e.target.files[0];
     if (!file || !chat) return;
@@ -115,7 +124,14 @@ export default function ChatWindow({ chat }) {
     e.target.value = "";
   };
 
-  /* DELETE */
+  const formatTime = (ts) =>
+    ts
+      ? new Date(ts).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "";
+
   const deleteMessage = async (id) => {
     const updated = messages.map((m) =>
       m.id === id ? { ...m, deleted: true, text: "", file: null } : m
@@ -125,57 +141,85 @@ export default function ChatWindow({ chat }) {
   };
 
   const renderMessage = (msg) => {
-    if (msg.deleted) return "This message was deleted";
+    if (msg.deleted)
+      return (
+        <span className="italic text-gray-500">You deleted this message</span>
+      );
 
-    if (msg.type === "text") {
-      return msg.text;
-    }
+    if (msg.type === "text") return msg.text;
 
-    if (!msg.file) {
-      return "Unsupported message";
-    }
+    if (!msg.file) return "Unsupported message";
 
     if (msg.type === "image") {
+      const blobUrl = base64ToBlobUrl(msg.file.data, msg.file.mime);
+
       return (
-        <img
-          src={msg.file.data}
-          alt={msg.file.name}
-          className="rounded-md max-w-full"
-        />
+        <a
+          href={blobUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block"
+        >
+          <img
+            src={blobUrl}
+            className="rounded-lg max-w-[360px] max-h-[260px] object-cover cursor-pointer"
+          />
+        </a>
       );
     }
 
-    if (msg.type === "video") {
+    if (msg.type === "video")
       return (
-        <video controls className="rounded-md max-w-full">
-          <source src={msg.file.data} type={msg.file.mime} />
+        <video
+          controls
+          className="rounded-lg max-w-[400px] max-h-[350px] bg-black"
+        >
+          <source src={msg.file.data} />
         </video>
       );
-    }
 
-    if (msg.type === "audio") {
+    if (msg.type === "audio")
       return (
         <audio controls>
-          <source src={msg.file.data} type={msg.file.mime} />
+          <source src={msg.file.data} />
         </audio>
       );
-    }
+
+    const blobUrl = base64ToBlobUrl(msg.file.data, msg.file.mime);
 
     return (
-      <a href={msg.file.data} download={msg.file.name} className="underline">
-        📄 {msg.file.name}
-      </a>
+      <div className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50 max-w-[280px]">
+        <div className="text-2xl">📄</div>
+
+        <div className="flex-1 overflow-hidden">
+          <div className="text-sm font-medium truncate">{msg.file.name}</div>
+          <div className="text-xs text-gray-500">Click to open</div>
+        </div>
+
+        <a
+          href={blobUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 text-sm hover:underline"
+        >
+          Open
+        </a>
+      </div>
     );
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-background">
-      <div className="h-14 border-b flex items-center gap-3 px-4 font-semibold">
+    <div className="flex-1 flex flex-col bg-[#E4E6EB]">
+      <div
+        className="h-14 border-b bg-[#E4E6EB] flex items-center gap-3 px-4 font-semibold
+                sticky top-0 z-50 shadow-md"
+      >
         {chat ? (
           <>
-            <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
+            <div className="w-9 h-9 rounded-full bg-[#E4E6EB] flex items-center justify-center border border-black/40">
               {chat.name[0]}
             </div>
+
             {chat.name}
           </>
         ) : (
@@ -189,7 +233,7 @@ export default function ChatWindow({ chat }) {
             <div>
               <div className="text-4xl mb-4">🐥</div>
               <h2 className="text-2xl font-semibold">Chirp for Desktop</h2>
-              <p className="text-muted-foreground">
+              <p className="text-gray-500">
                 Messages are end-to-end encrypted.
               </p>
             </div>
@@ -216,16 +260,21 @@ export default function ChatWindow({ chat }) {
                       }}
                     >
                       <div
-                        className={`px-3 py-2 rounded-lg text-sm max-w-[70%]
-              ${
-                msg.deleted
-                  ? "bg-muted text-muted-foreground italic"
-                  : isMe
-                  ? "bg-green-600 text-white"
-                  : "bg-muted"
-              }`}
+                        className={`relative px-3 py-2 rounded-xl text-sm max-w-[70%] shadow-sm
+    ${
+      msg.deleted
+        ? "bg-white text-gray-500"
+        : msg.type === "text"
+        ? isMe
+          ? "bg-[#25D366] text-white"
+          : "bg-white text-black"
+        : "bg-white text-black p-1"
+    }`}
                       >
                         {renderMessage(msg)}
+                        <div className="mt-1 text-[10px] text-right opacity-70">
+                          {formatTime(msg.timestamp)}
+                        </div>
                       </div>
                     </div>
                   </DropdownMenuTrigger>
@@ -252,17 +301,16 @@ export default function ChatWindow({ chat }) {
                 </DropdownMenu>
               );
             })}
-
             <div ref={bottomRef} />
           </div>
         )}
       </div>
 
       {chat && (
-        <div className="h-14 border-t flex items-center gap-2 px-3">
+        <div className="h-14 border-t bg-white flex items-center gap-2 px-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="w-9 h-9 rounded-full hover:bg-muted">
+              <button className="w-9 h-9 rounded-full hover:bg-[#E4E6EB]">
                 ＋
               </button>
             </DropdownMenuTrigger>
@@ -297,7 +345,7 @@ export default function ChatWindow({ chat }) {
 
           <button
             onClick={sendText}
-            className="px-4 py-2 rounded-md bg-green-600 text-white"
+            className="px-4 py-2 rounded-md bg-[#25D366] hover:bg-[#1DA851] text-white"
           >
             Send
           </button>
