@@ -8,7 +8,10 @@ export default function App() {
   const [selectedChat, setSelectedChat] = useState(null);
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden bg-background text-textPrimary">
+    <div
+      className="h-screen w-screen flex overflow-hidden bg-background text-textPrimary"
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <ChatList selectedChat={selectedChat} onSelectChat={setSelectedChat} />
 
       <ChatWindow chat={selectedChat} />

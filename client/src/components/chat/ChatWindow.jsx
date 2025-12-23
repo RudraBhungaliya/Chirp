@@ -168,7 +168,7 @@ export default function ChatWindow({ chat }) {
   const renderMessage = (msg) => {
     if (msg.deleted)
       return (
-        <span className="italic text-gray-500">You deleted this message</span>
+        <span className="italic text-white">You deleted this message</span>
       );
 
     if (msg.type === "text") return msg.text;
@@ -212,19 +212,21 @@ export default function ChatWindow({ chat }) {
       return <span className="text-gray-400">[Broken attachment]</span>;
 
     return (
-      <div className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50 max-w-[280px]">
-        <div className="text-2xl">📄</div>
+      <div className="flex items-center gap-3 p-3 rounded-lg max-w-[280px] bg-transparent">
+        <div className="text-2xl text-white/90">📄</div>
 
         <div className="flex-1 overflow-hidden">
-          <div className="text-sm font-medium truncate">{msg.file.name}</div>
-          <div className="text-xs text-gray-500">Click to open</div>
+          <div className="text-sm font-medium truncate text-white">
+            {msg.file.name}
+          </div>
+          <div className="text-xs text-white/70">Click to open</div>
         </div>
 
         <a
           href={blobUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 text-sm hover:underline"
+          className="text-white font-medium text-sm hover:underline"
         >
           Open
         </a>
@@ -233,10 +235,10 @@ export default function ChatWindow({ chat }) {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-[#E4E6EB]">
+    <div className="flex-1 flex flex-col bg-[#0B141A]">
       <div
-        className="h-14 border-b bg-[#E4E6EB] flex items-center gap-3 px-4 font-semibold
-                sticky top-0 z-50 shadow-md"
+        className="h-14 border-b bg-[#0B141A] flex items-center gap-3 px-4 font-semibold
+                sticky top-0 z-50 shadow-md text-white"
       >
         {chat ? (
           <>
@@ -256,14 +258,21 @@ export default function ChatWindow({ chat }) {
           <div className="absolute inset-0 flex items-center justify-center text-center">
             <div>
               <div className="text-4xl mb-4">🐥</div>
-              <h2 className="text-2xl font-semibold">Chirp for Desktop</h2>
-              <p className="text-gray-500">
+              <h2 className="text-2xl text-white font-semibold">
+                Chirp for Desktop
+              </h2>
+              <p className="text-gray-400">
                 Messages are end-to-end encrypted.
               </p>
             </div>
           </div>
         ) : (
-          <div className="absolute inset-0 px-6 py-4 overflow-y-auto">
+          <div
+            className="absolute inset-0 px-6 py-4 overflow-y-auto rounded-t-xl
+             bg-[url('/bg-canvas.jpg')]
+             bg-repeat bg-center bg-[length:420px]"
+            onContextMenu={(e) => e.preventDefault()}
+          >
             {messages.map((msg) => {
               const isMe = msg.sender === "me";
 
@@ -285,18 +294,18 @@ export default function ChatWindow({ chat }) {
                     >
                       <div
                         className={`relative px-3 py-2 rounded-xl text-sm max-w-[70%] shadow-sm
-    ${
-      msg.deleted
-        ? "bg-white text-gray-500"
-        : msg.type === "text"
-        ? isMe
-          ? "bg-[#25D366] text-white"
-          : "bg-white text-black"
-        : "bg-white text-black p-1"
-    }`}
+${
+  msg.deleted
+    ? "bg-[#145C44] text-white"
+    : isMe
+    ? "bg-[#145C44] text-white"
+    : "bg-white text-black"
+}
+${msg.type !== "text" ? " p-1" : ""}
+`}
                       >
                         {renderMessage(msg)}
-                        <div className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-70">
+                        <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-white opacity-80">
                           <span>{formatTime(msg.timestamp)}</span>
 
                           {msg.sender === "me" && (
@@ -335,55 +344,57 @@ export default function ChatWindow({ chat }) {
       </div>
 
       {chat && (
-        <div className="h-14 border-t bg-white flex items-center gap-2 px-3">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="w-9 h-9 rounded-full hover:bg-[#E4E6EB]">
-                ＋
-              </button>
-            </DropdownMenuTrigger>
+        <div className="h-16 bg-black flex items-center px-3">
+          <div className="flex items-center gap-2 w-full bg-[#202C33] rounded-full px-3 py-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="w-10 h-10 rounded-full text-white hover:bg-white/10 flex items-center justify-center text-xl">
+                  +
+                </button>
+              </DropdownMenuTrigger>
 
-            <DropdownMenuContent side="top" align="start">
-              {[
-                ["document", "📄 Document"],
-                ["image", "🖼 Image"],
-                ["video", "🎥 Video"],
-                ["audio", "🎧 Audio"],
-              ].map(([type, label]) => (
-                <DropdownMenuItem
-                  key={type}
-                  onClick={() => {
-                    fileTypeRef.current = type;
-                    fileInputRef.current.click();
-                  }}
-                >
-                  {label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <DropdownMenuContent side="top" align="start">
+                {[
+                  ["document", "📄 Document"],
+                  ["image", "🖼 Image"],
+                  ["video", "🎥 Video"],
+                  ["audio", "🎧 Audio"],
+                ].map(([type, label]) => (
+                  <DropdownMenuItem
+                    key={type}
+                    onClick={() => {
+                      fileTypeRef.current = type;
+                      fileInputRef.current.click();
+                    }}
+                  >
+                    {label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && sendText()}
-            placeholder="Type a message"
-            className="flex-1 h-9 px-3 rounded-md border outline-none"
-          />
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && sendText()}
+              placeholder="Type a message"
+              className="flex-1 bg-transparent text-white placeholder:text-white/60 outline-none px-2 text-sm"
+            />
 
-          <button
-            onClick={sendText}
-            className="px-4 py-2 rounded-md bg-[#25D366] hover:bg-[#1DA851] text-white"
-          >
-            Send
-          </button>
+            <button
+              onClick={sendText}
+              className="w-10 h-10 rounded-full bg-wa hover:bg-wa/90 text-white flex items-center justify-center"
+            >
+              ➤
+            </button>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            hidden
-            onChange={handleFileSelect}
-          />
+            <input
+              ref={fileInputRef}
+              type="file"
+              hidden
+              onChange={handleFileSelect}
+            />
+          </div>
         </div>
       )}
     </div>

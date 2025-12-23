@@ -35,45 +35,84 @@ export default function ChatList({ selectedChat, onSelectChat }) {
     <>
       <aside
         style={{ width }}
-        className="h-full border-r bg-background flex flex-col"
+        className="h-full border-r bg-[#0B141A] flex flex-col text-white"
       >
-        <div className="p-3 relative">
-          <Input
-            placeholder="Search chats"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pr-10"
-          />
-          {search.length > 1 && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-6 top-1/2 -translate-y-1/2 text-muted-foreground"
-            >
-              ✕
-            </button>
-          )}
+        <div className="px-3 py-2 bg-[#0B141A]">
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8696A0]">
+              🔍
+            </span>
+
+            <Input
+              placeholder="Search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="
+        h-11
+        pl-11 pr-10
+        rounded-full
+        bg-[#202C33]
+        text-[#E9EDEF]
+        placeholder:text-[#8696A0]
+        border-none
+        shadow-inner
+        focus-visible:ring-0
+        focus-visible:ring-offset-0
+      "
+            />
+
+            {search.length > 0 && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8696A0] hover:text-[#E9EDEF] cursor-pointer"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          {filtered.map((chat) => (
-            <div
-              key={chat.id}
-              onClick={() => onSelectChat(chat)}
-              className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b
-                ${selectedChat?.id === chat.id ? "bg-muted" : ""}`}
-            >
-              <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center font-semibold">
-                {chat.name[0]}
+        {/* Chat list / empty state */}
+        <div className="flex-1 flex">
+          {filtered.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center">
+              <div className="text-[#8696A0] text-sm">No chats found</div>
+              <div className="text-[#8696A0] text-xs mt-1">
+                Try a different name
               </div>
-              <span className="font-medium">{chat.name}</span>
             </div>
-          ))}
+          ) : (
+            <div className="flex-1 overflow-y-auto">
+              {filtered.map((chat) => (
+                <div
+                  key={chat.id}
+                  onClick={() => onSelectChat(chat)}
+                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b hover:bg-[#202C33]
+                    ${
+                      selectedChat?.id === chat.id
+                        ? "bg-[#202C33]"
+                        : "bg-[#111B21]"
+                    }`}
+                >
+                  <div className="w-9 h-9 rounded-full overflow-hidden bg-[#2A3942] flex items-center justify-center">
+                    <img
+                      src="/default-avatar.jpeg"
+                      alt="avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+
+                  <span className="font-medium">{chat.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </aside>
 
       <div
         onMouseDown={() => (resizing.current = true)}
-        className="w-[4px] cursor-col-resize bg-border"
+        className="w-[4px] cursor-col-resize bg-black hover:bg-black/80"
       />
     </>
   );
