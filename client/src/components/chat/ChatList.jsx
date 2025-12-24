@@ -72,7 +72,7 @@ export default function ChatList({ selectedChat, onSelectChat }) {
           </div>
         </div>
 
-        {/* Chat list / empty state */}
+        {/* Chat list */}
         <div className="flex-1 flex">
           {filtered.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center">
@@ -107,6 +107,28 @@ export default function ChatList({ selectedChat, onSelectChat }) {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Profile section */}
+        <div className="border-t border-[#202C33] px-4 py-3 flex items-center justify-start">
+          <button
+            onClick={() => {
+              console.log("Profile clicked");
+            }}
+            className="flex items-center gap-3 hover:bg-[#202C33] px-2 py-2 rounded-full transition"
+          >
+            <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2A3942]">
+              <img
+                src="/default-avatar.jpeg"
+                alt="profile"
+                className="w-full h-full object-cover"
+              />
+            </div>
+
+            <span className="text-sm text-[#E9EDEF] font-medium">
+              Your Profile
+            </span>
+          </button>
         </div>
       </aside>
 

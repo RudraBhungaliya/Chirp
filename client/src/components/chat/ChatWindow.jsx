@@ -242,8 +242,12 @@ export default function ChatWindow({ chat }) {
       >
         {chat ? (
           <>
-            <div className="w-9 h-9 rounded-full bg-[#E4E6EB] flex items-center justify-center border border-black/40">
-              {(chat.name || "?")[0]}
+            <div className="w-9 h-9 rounded-full overflow-hidden bg-[#2A3942] border border-black/40">
+              <img
+                src="/default-avatar.jpeg"
+                alt="avatar"
+                className="w-full h-full object-cover"
+              />
             </div>
 
             {chat.name || "Unknown"}
