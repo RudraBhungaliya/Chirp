@@ -1,20 +1,27 @@
 import { useRef, useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 
-export default function ChatList({ selectedChat, onSelectChat }) {
+export default function ChatList({
+  selectedChat,
+  onSelectChat,
+  chats = [],
+  currentUserId,
+  currentUser,
+  onRequireAuth,
+}) {
   const [search, setSearch] = useState("");
   const [width, setWidth] = useState(360);
   const resizing = useRef(false);
 
-  const chats = [
-    { id: 1, name: "Alice" },
-    { id: 2, name: "Bob" },
-    { id: 3, name: "Charlie" },
-  ];
+  const filtered = chats.filter((chat) => {
+    const displayUser =
+      chat.participants.find((p) => p._id !== currentUserId) ||
+      chat.participants.find((p) => p._id === currentUserId);
 
-  const filtered = chats.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase())
-  );
+    return displayUser?.displayName
+      .toLowerCase()
+      .includes(search.toLowerCase());
+  });
 
   useEffect(() => {
     const move = (e) => {
@@ -73,62 +80,114 @@ export default function ChatList({ selectedChat, onSelectChat }) {
         </div>
 
         {/* Chat list */}
-        <div className="flex-1 flex">
+        <div className="flex-1 overflow-y-auto">
           {filtered.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-center">
+            <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="text-[#8696A0] text-sm">No chats found</div>
               <div className="text-[#8696A0] text-xs mt-1">
                 Try a different name
               </div>
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto">
-              {filtered.map((chat) => (
+            filtered.map((chat) => {
+              const displayUser =
+                chat.participants.find((p) => p._id !== currentUserId) ||
+                chat.participants.find((p) => p._id === currentUserId);
+
+              const isSelfChat = displayUser?._id === currentUserId;
+
+              return (
                 <div
-                  key={chat.id}
+                  key={chat._id}
                   onClick={() => onSelectChat(chat)}
-                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b hover:bg-[#202C33]
-                    ${
-                      selectedChat?.id === chat.id
-                        ? "bg-[#202C33]"
-                        : "bg-[#111B21]"
-                    }`}
+                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-[#202C33]
+                  ${
+                    selectedChat?._id === chat._id
+                      ? "bg-[#202C33]"
+                      : "bg-[#111B21] hover:bg-[#202C33]"
+                  }`}
                 >
-                  <div className="w-9 h-9 rounded-full overflow-hidden bg-[#2A3942] flex items-center justify-center">
+                  <div className="w-9 h-9 rounded-full overflow-hidden bg-[#2A3942]">
                     <img
-                      src="/default-avatar.jpeg"
+                      src={displayUser?.avatar || "/default-avatar.jpeg"}
+                      onError={(e) =>
+                        (e.currentTarget.src = "/default-avatar.jpeg")
+                      }
                       alt="avatar"
                       className="w-full h-full object-cover"
                     />
                   </div>
 
-                  <span className="font-medium">{chat.name}</span>
+                  <div className="flex-1">
+                    <div className="font-medium text-[#E9EDEF]">
+                      {isSelfChat
+                        ? "Saved Messages"
+                        : displayUser?.displayName || "Unknown"}
+                    </div>
+
+                    {chat.lastMessage && (
+                      <div className="text-xs text-[#8696A0] truncate">
+                        {chat.lastMessage.content}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
+              );
+            })
           )}
         </div>
 
         {/* Profile section */}
-        <div className="border-t border-[#202C33] px-4 py-3 flex items-center justify-start">
-          <button
-            onClick={() => {
-              console.log("Profile clicked");
-            }}
-            className="flex items-center gap-3 hover:bg-[#202C33] px-2 py-2 rounded-full transition"
-          >
-            <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2A3942]">
-              <img
-                src="/default-avatar.jpeg"
-                alt="profile"
-                className="w-full h-full object-cover"
-              />
-            </div>
+        <div className="border-t border-[#202C33] px-4 py-3">
+          {/* Bottom left panel */}
+          <div className="border-t border-[#202C33] px-4 py-3">
+            {!currentUser ? (
+              // NOT LOGGED IN
+              <button
+                onClick={onRequireAuth}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-[#202C33] transition"
+              >
+                <div className="w-10 h-10 rounded-full bg-[#2A3942] flex items-center justify-center text-[#8696A0]">
+                  👤
+                </div>
 
-            <span className="text-sm text-[#E9EDEF] font-medium">
-              Your Profile
-            </span>
-          </button>
+                <div className="text-left">
+                  <div className="text-sm font-medium text-[#E9EDEF]">
+                    Login to Chirp
+                  </div>
+                  <div className="text-xs text-[#8696A0]">
+                    Sign in to start chatting
+                  </div>
+                </div>
+              </button>
+            ) : (
+              // LOGGED IN
+              <button
+                onClick={() => {
+                  console.log("Open profile settings (later)");
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-[#202C33] transition"
+              >
+                <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2A3942]">
+                  <img
+                    src={currentUser.avatar || "/default-avatar.jpeg"}
+                    onError={(e) =>
+                      (e.currentTarget.src = "/default-avatar.jpeg")
+                    }
+                    alt="profile"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+
+                <div className="text-left">
+                  <div className="text-sm font-medium text-[#E9EDEF]">
+                    {currentUser.displayName || "You"}
+                  </div>
+                  <div className="text-xs text-[#8696A0]">View profile</div>
+                </div>
+              </button>
+            )}
+          </div>
         </div>
       </aside>
 
