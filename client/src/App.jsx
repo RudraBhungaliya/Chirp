@@ -21,7 +21,7 @@ export default function App() {
       return;
     }
 
-    fetch("http://localhost:5000/api/chats", {
+    fetch(`${import.meta.env.VITE_API_URL}/api/chats`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

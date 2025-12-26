@@ -7,6 +7,6 @@ const router = express.Router();
 
 router.get("/me", auth, getMe);
 
-router.post(".complete-profile", auth, completeProfile);
+router.post("/complete-profile", auth, completeProfile);
 
 export default router;

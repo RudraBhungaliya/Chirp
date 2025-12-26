@@ -8,7 +8,7 @@ import {
 
 const router = express.Router();
 
-router.get("/:chatID", auth, getMessages);
+router.get("/:chatId", auth, getMessages);
 router.post("/:chatId", auth, sendMessage);
 
 export default router;

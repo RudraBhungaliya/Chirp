@@ -16,8 +16,9 @@ export default function ChatList({
   const filtered = chats
     .map((chat) => {
       const displayUser =
-        chat.participants.find((p) => p._id !== currentUserId) ||
-        chat.participants.find((p) => p._id === currentUserId);
+        chat.participants?.find((p) => p._id !== currentUserId) ||
+        chat.participants?.find((p) => p._id === currentUserId) ||
+        null;
 
       return { ...chat, displayUser };
     })
@@ -50,10 +51,14 @@ export default function ChatList({
       if (!resizing.current) return;
       setWidth(Math.min(520, Math.max(260, e.clientX)));
     };
-    const up = () => (resizing.current = false);
+
+    const up = () => {
+      resizing.current = false;
+    };
 
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", up);
+
     return () => {
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", up);
@@ -66,7 +71,7 @@ export default function ChatList({
         style={{ width }}
         className="h-full border-r bg-[#0B141A] flex flex-col text-white"
       >
-        <div className="px-3 py-2 bg-[#0B141A]">
+        <div className="px-3 py-2">
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8696A0]">
               🔍
@@ -90,7 +95,7 @@ export default function ChatList({
               "
             />
 
-            {search.length > 0 && (
+            {search && (
               <button
                 onClick={() => setSearch("")}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8696A0] hover:text-[#E9EDEF]"
@@ -111,7 +116,7 @@ export default function ChatList({
             </div>
           ) : (
             filtered.map((chat) => {
-              const { displayUser } = chat;
+              const displayUser = chat.displayUser;
               const isSelfChat = displayUser?._id === currentUserId;
 
               return (
@@ -128,16 +133,16 @@ export default function ChatList({
                   <div className="w-9 h-9 rounded-full overflow-hidden bg-[#2A3942]">
                     <img
                       src={displayUser?.avatar || "/default-avatar.jpeg"}
-                      onError={(e) =>
-                        (e.currentTarget.src = "/default-avatar.jpeg")
-                      }
+                      onError={(e) => {
+                        e.currentTarget.src = "/default-avatar.jpeg";
+                      }}
                       alt="avatar"
                       className="w-full h-full object-cover"
                     />
                   </div>
 
-                  <div className="flex-1">
-                    <div className="font-medium text-[#E9EDEF]">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-[#E9EDEF] truncate">
                       {isSelfChat
                         ? "Saved Messages"
                         : displayUser?.displayName || "Unknown"}
@@ -176,9 +181,9 @@ export default function ChatList({
               <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2A3942]">
                 <img
                   src={currentUser.avatar || "/default-avatar.jpeg"}
-                  onError={(e) =>
-                    (e.currentTarget.src = "/default-avatar.jpeg")
-                  }
+                  onError={(e) => {
+                    e.currentTarget.src = "/default-avatar.jpeg";
+                  }}
                   alt="profile"
                   className="w-full h-full object-cover"
                 />

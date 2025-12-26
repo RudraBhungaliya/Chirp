@@ -1,11 +1,10 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
-  const [needsProfile, setNeedsProfile] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -16,27 +15,29 @@ export const AuthProvider = ({ children }) => {
       setToken(t);
       setUser(JSON.parse(u));
     }
+
     setLoading(false);
   }, []);
 
-  const login = ({ token, user, needsProfile }) => {
+  const login = ({ token, user }) => {
     localStorage.setItem("token", token);
     localStorage.setItem("user", JSON.stringify(user));
+
     setToken(token);
     setUser(user);
-    setNeedsProfile(needsProfile);
   };
 
   const logout = () => {
     localStorage.clear();
     setUser(null);
     setToken(null);
-    setNeedsProfile(false);
   };
+
+  const needsProfile = user ? !user.isProfileComplete : false;
 
   return (
     <AuthContext.Provider
-      value={{ user, token, needsProfile, login, logout, loading }}
+      value={{ user, token, needsProfile, loading, login, logout }}
     >
       {children}
     </AuthContext.Provider>
