@@ -13,15 +13,37 @@ export default function ChatList({
   const [width, setWidth] = useState(360);
   const resizing = useRef(false);
 
-  const filtered = chats.filter((chat) => {
-    const displayUser =
-      chat.participants.find((p) => p._id !== currentUserId) ||
-      chat.participants.find((p) => p._id === currentUserId);
+  const filtered = chats
+    .map((chat) => {
+      const displayUser =
+        chat.participants.find((p) => p._id !== currentUserId) ||
+        chat.participants.find((p) => p._id === currentUserId);
 
-    return displayUser?.displayName
-      .toLowerCase()
-      .includes(search.toLowerCase());
-  });
+      return { ...chat, displayUser };
+    })
+    .filter((chat) =>
+      chat.displayUser?.displayName
+        ?.toLowerCase()
+        .includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      const timeA = a.lastMessage?.createdAt
+        ? new Date(a.lastMessage.createdAt).getTime()
+        : 0;
+
+      const timeB = b.lastMessage?.createdAt
+        ? new Date(b.lastMessage.createdAt).getTime()
+        : 0;
+
+      if (timeA !== timeB) return timeB - timeA;
+
+      const nameA = a.displayUser?.displayName || "";
+      const nameB = b.displayUser?.displayName || "";
+
+      return nameA.localeCompare(nameB, undefined, {
+        sensitivity: "base",
+      });
+    });
 
   useEffect(() => {
     const move = (e) => {
@@ -55,23 +77,23 @@ export default function ChatList({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="
-        h-11
-        pl-11 pr-10
-        rounded-full
-        bg-[#202C33]
-        text-[#E9EDEF]
-        placeholder:text-[#8696A0]
-        border-none
-        shadow-inner
-        focus-visible:ring-0
-        focus-visible:ring-offset-0
-      "
+                h-11
+                pl-11 pr-10
+                rounded-full
+                bg-[#202C33]
+                text-[#E9EDEF]
+                placeholder:text-[#8696A0]
+                border-none
+                shadow-inner
+                focus-visible:ring-0
+                focus-visible:ring-offset-0
+              "
             />
 
             {search.length > 0 && (
               <button
                 onClick={() => setSearch("")}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8696A0] hover:text-[#E9EDEF] cursor-pointer"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8696A0] hover:text-[#E9EDEF]"
               >
                 ✕
               </button>
@@ -79,7 +101,6 @@ export default function ChatList({
           </div>
         </div>
 
-        {/* Chat list */}
         <div className="flex-1 overflow-y-auto">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
@@ -90,10 +111,7 @@ export default function ChatList({
             </div>
           ) : (
             filtered.map((chat) => {
-              const displayUser =
-                chat.participants.find((p) => p._id !== currentUserId) ||
-                chat.participants.find((p) => p._id === currentUserId);
-
+              const { displayUser } = chat;
               const isSelfChat = displayUser?._id === currentUserId;
 
               return (
@@ -101,11 +119,11 @@ export default function ChatList({
                   key={chat._id}
                   onClick={() => onSelectChat(chat)}
                   className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-[#202C33]
-                  ${
-                    selectedChat?._id === chat._id
-                      ? "bg-[#202C33]"
-                      : "bg-[#111B21] hover:bg-[#202C33]"
-                  }`}
+                    ${
+                      selectedChat?._id === chat._id
+                        ? "bg-[#202C33]"
+                        : "bg-[#111B21] hover:bg-[#202C33]"
+                    }`}
                 >
                   <div className="w-9 h-9 rounded-full overflow-hidden bg-[#2A3942]">
                     <img
@@ -137,57 +155,42 @@ export default function ChatList({
           )}
         </div>
 
-        {/* Profile section */}
         <div className="border-t border-[#202C33] px-4 py-3">
-          {/* Bottom left panel */}
-          <div className="border-t border-[#202C33] px-4 py-3">
-            {!currentUser ? (
-              // NOT LOGGED IN
-              <button
-                onClick={onRequireAuth}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-[#202C33] transition"
-              >
-                <div className="w-10 h-10 rounded-full bg-[#2A3942] flex items-center justify-center text-[#8696A0]">
-                  👤
+          {!currentUser ? (
+            <button
+              onClick={onRequireAuth}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-[#202C33]"
+            >
+              <div className="w-10 h-10 rounded-full bg-[#2A3942] flex items-center justify-center">
+                👤
+              </div>
+              <div className="text-left">
+                <div className="text-sm font-medium">Login to Chirp</div>
+                <div className="text-xs text-[#8696A0]">
+                  Sign in to start chatting
                 </div>
-
-                <div className="text-left">
-                  <div className="text-sm font-medium text-[#E9EDEF]">
-                    Login to Chirp
-                  </div>
-                  <div className="text-xs text-[#8696A0]">
-                    Sign in to start chatting
-                  </div>
+              </div>
+            </button>
+          ) : (
+            <button className="w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-[#202C33]">
+              <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2A3942]">
+                <img
+                  src={currentUser.avatar || "/default-avatar.jpeg"}
+                  onError={(e) =>
+                    (e.currentTarget.src = "/default-avatar.jpeg")
+                  }
+                  alt="profile"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="text-left">
+                <div className="text-sm font-medium">
+                  {currentUser.displayName || "You"}
                 </div>
-              </button>
-            ) : (
-              // LOGGED IN
-              <button
-                onClick={() => {
-                  console.log("Open profile settings (later)");
-                }}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-[#202C33] transition"
-              >
-                <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2A3942]">
-                  <img
-                    src={currentUser.avatar || "/default-avatar.jpeg"}
-                    onError={(e) =>
-                      (e.currentTarget.src = "/default-avatar.jpeg")
-                    }
-                    alt="profile"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-
-                <div className="text-left">
-                  <div className="text-sm font-medium text-[#E9EDEF]">
-                    {currentUser.displayName || "You"}
-                  </div>
-                  <div className="text-xs text-[#8696A0]">View profile</div>
-                </div>
-              </button>
-            )}
-          </div>
+                <div className="text-xs text-[#8696A0]">View profile</div>
+              </div>
+            </button>
+          )}
         </div>
       </aside>
 

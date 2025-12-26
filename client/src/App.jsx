@@ -1,20 +1,18 @@
 import { useState, useEffect } from "react";
 
 // components
+import { useAuth } from "./context/authContext";
+import GoogleLoginButton from "./components/auth/GoogleLoginButton";
+import ProfileSetup from "./components/auth/ProfileSetup";
 import ChatList from "./components/chat/ChatList";
 import ChatWindow from "./components/chat/ChatWindow";
-import Auth from "./components/auth/Auth";
 
 export default function App() {
+  const { user, token, loading, needsProfile } = useAuth();
+
   const [selectedChat, setSelectedChat] = useState(null);
   const [chats, setChats] = useState([]);
-  const [user, setUser] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
-
-  useEffect(() => {
-    const storedUser = JSON.parse(localStorage.getItem("user"));
-    if (storedUser) setUser(storedUser);
-  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -25,13 +23,19 @@ export default function App() {
 
     fetch("http://localhost:5000/api/chats", {
       headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        Authorization: `Bearer ${token}`,
       },
     })
       .then((res) => res.json())
       .then(setChats)
       .catch(console.error);
-  }, [user]);
+  }, [user, token]);
+
+  if (loading) return null;
+
+  if (user && needsProfile) {
+    return <ProfileSetup />;
+  }
 
   return (
     <div
@@ -54,13 +58,17 @@ export default function App() {
       />
 
       {!user && showAuth && (
-        <Auth
-          onAuthSuccess={(u) => {
-            setUser(u);
-            setShowAuth(false);
-          }}
-          onClose={() => setShowAuth(false)}
-        />
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center">
+          <div className="bg-[#111B21] p-6 rounded">
+            <GoogleLoginButton />
+            <button
+              className="mt-4 text-sm text-gray-400"
+              onClick={() => setShowAuth(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
