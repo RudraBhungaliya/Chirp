@@ -1,5 +1,12 @@
 import { useRef, useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
+import axios from "axios";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function ChatList({
   selectedChat,
@@ -8,6 +15,8 @@ export default function ChatList({
   currentUserId,
   currentUser,
   onRequireAuth,
+  onEditProfile,
+  onLogout,
 }) {
   const [search, setSearch] = useState("");
   const [width, setWidth] = useState(360);
@@ -22,11 +31,13 @@ export default function ChatList({
 
       return { ...chat, displayUser };
     })
-    .filter((chat) =>
-      chat.displayUser?.displayName
+    .filter((chat) => {
+      const isSelfChat = chat.displayUser?._id === currentUserId;
+      const displayName = isSelfChat ? "Saved Messages" : chat.displayUser?.displayName;
+      return displayName
         ?.toLowerCase()
-        .includes(search.toLowerCase())
-    )
+        .includes(search.toLowerCase());
+    })
     .sort((a, b) => {
       const timeA = a.lastMessage?.createdAt
         ? new Date(a.lastMessage.createdAt).getTime()
@@ -38,8 +49,11 @@ export default function ChatList({
 
       if (timeA !== timeB) return timeB - timeA;
 
-      const nameA = a.displayUser?.displayName || "";
-      const nameB = b.displayUser?.displayName || "";
+      const isSelfChatA = a.displayUser?._id === currentUserId;
+      const isSelfChatB = b.displayUser?._id === currentUserId;
+      
+      const nameA = isSelfChatA ? "Saved Messages" : a.displayUser?.displayName || "";
+      const nameB = isSelfChatB ? "Saved Messages" : b.displayUser?.displayName || "";
 
       return nameA.localeCompare(nameB, undefined, {
         sensitivity: "base",
@@ -177,24 +191,40 @@ export default function ChatList({
               </div>
             </button>
           ) : (
-            <button className="w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-[#202C33]">
-              <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2A3942]">
-                <img
-                  src={currentUser.avatar || "/default-avatar.jpeg"}
-                  onError={(e) => {
-                    e.currentTarget.src = "/default-avatar.jpeg";
-                  }}
-                  alt="profile"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="text-left">
-                <div className="text-sm font-medium">
-                  {currentUser.displayName || "You"}
-                </div>
-                <div className="text-xs text-[#8696A0]">View profile</div>
-              </div>
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-[#202C33] cursor-pointer">
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2A3942]">
+                    <img
+                      src={currentUser.avatar || "/default-avatar.jpeg"}
+                      onError={(e) => {
+                        e.currentTarget.src = "/default-avatar.jpeg";
+                      }}
+                      alt="profile"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-sm font-medium">
+                      {currentUser.displayName || "You"}
+                    </div>
+                    <div className="text-xs text-[#8696A0]">@{currentUser.userName || "user"}</div>
+                  </div>
+                </button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={onEditProfile}>
+                  ✎ Edit Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={onLogout}
+                  className="text-red-500"
+                >
+                  ⊗ Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </aside>

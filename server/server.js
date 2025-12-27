@@ -15,6 +15,7 @@ import userRoute from "./routes/userRoute.js";
 import Chat from "./models/Chat.js";
 import Message from "./models/Message.js";
 import User from "./models/User.js";
+import { searchUsers } from "./controllers/userController.js";
 
 // ENV
 dotenv.config();
