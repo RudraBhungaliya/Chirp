@@ -89,7 +89,12 @@ export const getAllUsers = async (req, res) => {
       _id: { $ne: req.userId },
     }).select("_id userName displayName avatar isActive ");
 
-    res.status(200).json(users);
+    // Remove duplicates if any
+    const uniqueUsers = Array.from(
+      new Map(users.map((user) => [user._id.toString(), user])).values()
+    );
+
+    res.status(200).json(uniqueUsers);
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }

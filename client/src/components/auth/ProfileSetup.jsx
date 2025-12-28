@@ -92,6 +92,8 @@ export default function ProfileSetup({ isModal = false, onClose = null, onProfil
 
       if (isModal && onProfileUpdate) {
         onProfileUpdate(updatedUser);
+      } else if (!isModal && onProfileUpdate) {
+        onProfileUpdate(updatedUser);
       }
 
       if (isModal && onClose) {

@@ -12,39 +12,39 @@ export default function App() {
 
   const [selectedChat, setSelectedChat] = useState(null);
   const [chats, setChats] = useState([]);
+  const [users, setUsers] = useState([]);
   const [showAuth, setShowAuth] = useState(false);
   const [showProfileEdit, setShowProfileEdit] = useState(false);
+  const [showInitialProfileSetup, setShowInitialProfileSetup] = useState(needsProfile);
 
+  // Only initialize chats after profile is complete
   useEffect(() => {
-    if (!user || !token) {
+    if (!user || !token || needsProfile) {
       setChats([]);
+      setUsers([]);
       setSelectedChat(null);
       return;
     }
 
-    // Create or get self-chat for the user
-    const initializeChats = async () => {
+    const initializeChatsAndUsers = async () => {
       try {
-        // First, create self-chat
-        await fetch(
-          `${import.meta.env.VITE_API_URL}/api/chats/create`,
+        // Fetch all users
+        const usersRes = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/users`,
           {
-            method: "POST",
             headers: {
-              "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({
-              userId: user._id,
-            }),
           }
         );
+        const allUsers = await usersRes.json();
+        setUsers(allUsers);
       } catch (error) {
-        console.error("Error creating self-chat:", error);
+        console.error("Error fetching users:", error);
       }
 
       try {
-        // Then fetch all chats
+        // Fetch all chats
         const chatsRes = await fetch(
           `${import.meta.env.VITE_API_URL}/api/chats`,
           {
@@ -60,8 +60,8 @@ export default function App() {
       }
     };
 
-    initializeChats();
-  }, [user, token]);
+    initializeChatsAndUsers();
+  }, [user, token, needsProfile]);
 
   const handleProfileUpdate = (updatedUser) => {
     login({
@@ -69,6 +69,45 @@ export default function App() {
       user: updatedUser,
     });
     setShowProfileEdit(false);
+    setShowInitialProfileSetup(false);
+  };
+
+  const handleSelectUser = async (selectedUser) => {
+    try {
+      // Create or get chat with the selected user
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/chats`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            userId: selectedUser._id,
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        console.error("Failed to create/get chat");
+        return;
+      }
+
+      const chat = await res.json();
+      setSelectedChat(chat);
+
+      // Add to chats list if not already there
+      setChats((prevChats) => {
+        const exists = prevChats.some((c) => c._id === chat._id);
+        if (exists) {
+          return prevChats;
+        }
+        return [chat, ...prevChats];
+      });
+    } catch (error) {
+      console.error("Error selecting user:", error);
+    }
   };
 
   const handleLogout = () => {
@@ -80,8 +119,8 @@ export default function App() {
 
   if (loading) return null;
 
-  if (user && needsProfile) {
-    return <ProfileSetup />;
+  if (user && showInitialProfileSetup) {
+    return <ProfileSetup onProfileUpdate={handleProfileUpdate} />;
   }
 
   return (
@@ -91,8 +130,10 @@ export default function App() {
     >
       <ChatList
         chats={chats}
+        users={users}
         selectedChat={selectedChat}
         onSelectChat={setSelectedChat}
+        onSelectUser={handleSelectUser}
         currentUserId={user?._id}
         currentUser={user}
         onRequireAuth={() => setShowAuth(true)}
@@ -121,11 +162,18 @@ export default function App() {
       )}
 
       {user && showProfileEdit && (
-        <ProfileSetup
-          isModal={true}
-          onClose={() => setShowProfileEdit(false)}
-          onProfileUpdate={handleProfileUpdate}
-        />
+        <div 
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+          onClick={() => setShowProfileEdit(false)}
+        >
+          <div onClick={(e) => e.stopPropagation()}>
+            <ProfileSetup
+              isModal={true}
+              onClose={() => setShowProfileEdit(false)}
+              onProfileUpdate={handleProfileUpdate}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

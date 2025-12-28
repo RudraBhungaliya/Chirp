@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import localforage from "localforage";
+import { connectSocket } from "../../services/socket";
+import { useAuth } from "../../context/authContext";
 
 import {
   DropdownMenu,
@@ -43,11 +45,14 @@ const base64ToBlobUrl = (base64, mime) => {
   return URL.createObjectURL(blob);
 };
 
-export default function ChatWindow({ chat }) {
+export default function ChatWindow({ chat, user, onRequireAuth }) {
+  const { token } = useAuth();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [menuOpenFor, setMenuOpenFor] = useState(null);
+  const [loading, setLoading] = useState(false);
   const bottomRef = useRef(null);
+  const socketRef = useRef(null);
 
   const fileInputRef = useRef(null);
   const fileTypeRef = useRef("document");
@@ -57,23 +62,124 @@ export default function ChatWindow({ chat }) {
       setMessages([]);
       return;
     }
-    localforage.getItem(`messages:${chat.id}`).then((m) => {
-      const normalized = (m || []).map((msg) => ({
-        ...msg,
-        sender: msg.sender ?? "me",
-      }));
-      setMessages(normalized);
+
+    // Fetch messages from backend
+    const fetchMessages = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/message/${chat._id}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (res.ok) {
+          const msgs = await res.json();
+          const normalized = msgs.map((msg) => ({
+            id: msg._id,
+            sender: msg.sender._id === user._id ? "me" : msg.sender._id,
+            senderName: msg.sender.displayName,
+            senderAvatar: msg.sender.avatar,
+            type: msg.type,
+            text: msg.content,
+            file: msg.file,
+            deleted: msg.deleted,
+            timestamp: new Date(msg.createdAt).getTime(),
+            seen: true,
+            createdAt: msg.createdAt,
+          }));
+          setMessages(normalized);
+        }
+      } catch (error) {
+        console.error("Error fetching messages:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMessages();
+  }, [chat, token, user]);
+
+  // Socket.io setup for real-time messages
+  useEffect(() => {
+    if (!token || !chat) return;
+
+    if (!socketRef.current) {
+      socketRef.current = connectSocket(token);
+    }
+
+    const socket = socketRef.current;
+
+    // Join the chat room
+    socket.emit("join_chat", chat._id);
+
+    // Listen for new messages
+    socket.on("new_message", (message) => {
+      const normalized = {
+        id: message._id,
+        sender: message.sender._id === user._id ? "me" : message.sender._id,
+        senderName: message.sender.displayName,
+        senderAvatar: message.sender.avatar,
+        type: message.type,
+        text: message.content,
+        file: message.file,
+        deleted: message.deleted,
+        timestamp: new Date(message.createdAt).getTime(),
+        seen: true,
+        createdAt: message.createdAt,
+      };
+      setMessages((prev) => [...prev, normalized]);
     });
-  }, [chat]);
+
+    return () => {
+      socket.off("new_message");
+    };
+  }, [chat, token, user]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages]);
 
   const pushMessage = async (msg) => {
-    const updated = [...messages, msg];
-    setMessages(updated);
-    await localforage.setItem(`messages:${chat.id}`, updated);
+    if (!chat) return;
+
+    try {
+      setMessages((prev) => [...prev, msg]);
+
+      // Send to backend
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/message/${chat._id}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            content: msg.text,
+            type: msg.type,
+            file: msg.file,
+          }),
+        }
+      );
+
+      if (res.ok) {
+        const savedMsg = await res.json();
+        // Update the message with server id
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.timestamp === msg.timestamp
+              ? { ...m, id: savedMsg._id }
+              : m
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
   };
 
   const sendText = async () => {
@@ -139,11 +245,27 @@ export default function ChatWindow({ chat }) {
       : "";
 
   const deleteMessage = async (id) => {
-    const updated = messages.map((m) =>
-      m.id === id ? { ...m, deleted: true, text: "", file: null } : m
-    );
-    setMessages(updated);
-    await localforage.setItem(`messages:${chat.id}`, updated);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/message/${chat._id}/${id}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (res.ok) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === id ? { ...m, deleted: true, text: "", file: null } : m
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error deleting message:", error);
+    }
   };
 
   useEffect(() => {
@@ -243,14 +365,33 @@ export default function ChatWindow({ chat }) {
         {chat ? (
           <>
             <div className="w-9 h-9 rounded-full overflow-hidden bg-[#2A3942] border border-black/40">
-              <img
-                src="/default-avatar.jpeg"
-                alt="avatar"
-                className="w-full h-full object-cover"
-              />
+              {chat.participants && chat.participants.length > 0 ? (
+                <img
+                  src={
+                    chat.participants.find((p) => p._id !== user._id)
+                      ?.avatar || "/default-avatar.jpeg"
+                  }
+                  alt="avatar"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.src = "/default-avatar.jpeg";
+                  }}
+                />
+              ) : (
+                <img
+                  src="/default-avatar.jpeg"
+                  alt="avatar"
+                  className="w-full h-full object-cover"
+                />
+              )}
             </div>
 
-            {chat.name || "Unknown"}
+            {chat.participants
+              ? chat.participants
+                  .filter((p) => p._id !== user._id)
+                  .map((p) => p.displayName)
+                  .join(", ") || "Unknown"
+              : "Unknown"}
           </>
         ) : (
           "Chirp"
@@ -279,6 +420,7 @@ export default function ChatWindow({ chat }) {
           >
             {messages.map((msg) => {
               const isMe = msg.sender === "me";
+              const senderName = isMe ? "You" : "User";
 
               return (
                 <DropdownMenu
@@ -296,6 +438,16 @@ export default function ChatWindow({ chat }) {
                         if (!msg.deleted) setMenuOpenFor(msg.id);
                       }}
                     >
+                      {!isMe && (
+                        <img
+                          src={msg.senderAvatar || "/default-avatar.png"}
+                          alt="avatar"
+                          className="w-8 h-8 rounded-full object-cover mr-2 mt-1"
+                          onError={(e) => {
+                            e.target.src = "/default-avatar.png";
+                          }}
+                        />
+                      )}
                       <div
                         className={`relative px-3 py-2 rounded-xl text-sm max-w-[70%] shadow-sm
 ${

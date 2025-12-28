@@ -83,11 +83,13 @@ io.on("connection", async (socket) => {
         type,
       });
 
+      await message.populate("sender", "displayName avatar _id");
+
       await Chat.findByIdAndUpdate(chatId, {
         lastMessage: message._id,
       });
 
-      io.to(chatId).emit("receive_message", message);
+      io.to(chatId).emit("new_message", message);
     });
 
     socket.on("disconnect", async () => {

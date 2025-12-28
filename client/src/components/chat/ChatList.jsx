@@ -11,6 +11,8 @@ import {
 export default function ChatList({
   selectedChat,
   onSelectChat,
+  onSelectUser,
+  users = [],
   chats = [],
   currentUserId,
   currentUser,
@@ -22,42 +24,33 @@ export default function ChatList({
   const [width, setWidth] = useState(360);
   const resizing = useRef(false);
 
-  const filtered = chats
+  const filteredChats = chats
     .map((chat) => {
       const displayUser =
-        chat.participants?.find((p) => p._id !== currentUserId) ||
-        chat.participants?.find((p) => p._id === currentUserId) ||
-        null;
+        chat.participants?.find((p) => p._id !== currentUserId) || null;
 
       return { ...chat, displayUser };
     })
-    .filter((chat) => {
-      const isSelfChat = chat.displayUser?._id === currentUserId;
-      const displayName = isSelfChat ? "Saved Messages" : chat.displayUser?.displayName;
-      return displayName
+    .filter((chat) =>
+      chat.displayUser?.displayName
         ?.toLowerCase()
-        .includes(search.toLowerCase());
-    })
+        .includes(search.toLowerCase())
+    )
     .sort((a, b) => {
-      const timeA = a.lastMessage?.createdAt
+      const tA = a.lastMessage?.createdAt
         ? new Date(a.lastMessage.createdAt).getTime()
         : 0;
-
-      const timeB = b.lastMessage?.createdAt
+      const tB = b.lastMessage?.createdAt
         ? new Date(b.lastMessage.createdAt).getTime()
         : 0;
 
-      if (timeA !== timeB) return timeB - timeA;
+      if (tA !== tB) return tB - tA;
 
-      const isSelfChatA = a.displayUser?._id === currentUserId;
-      const isSelfChatB = b.displayUser?._id === currentUserId;
-      
-      const nameA = isSelfChatA ? "Saved Messages" : a.displayUser?.displayName || "";
-      const nameB = isSelfChatB ? "Saved Messages" : b.displayUser?.displayName || "";
-
-      return nameA.localeCompare(nameB, undefined, {
-        sensitivity: "base",
-      });
+      return (a.displayUser?.displayName || "").localeCompare(
+        b.displayUser?.displayName || "",
+        undefined,
+        { sensitivity: "base" }
+      );
     });
 
   useEffect(() => {
@@ -85,6 +78,7 @@ export default function ChatList({
         style={{ width }}
         className="h-full border-r bg-[#0B141A] flex flex-col text-white"
       >
+        {/* SEARCH */}
         <div className="px-3 py-2">
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8696A0]">
@@ -95,71 +89,78 @@ export default function ChatList({
               placeholder="Search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="
-                h-11
-                pl-11 pr-10
-                rounded-full
-                bg-[#202C33]
-                text-[#E9EDEF]
-                placeholder:text-[#8696A0]
-                border-none
-                shadow-inner
-                focus-visible:ring-0
-                focus-visible:ring-offset-0
-              "
+              className="h-11 pl-11 pr-10 rounded-full bg-[#202C33]
+                         text-[#E9EDEF] placeholder:text-[#8696A0]
+                         border-none focus-visible:ring-0"
             />
-
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8696A0] hover:text-[#E9EDEF]"
-              >
-                ✕
-              </button>
-            )}
           </div>
         </div>
 
+        {/* USERS (START NEW CHAT) */}
+        {users.length > 0 && (
+          <div className="border-b border-[#202C33]">
+            {users
+              .filter(
+                (u) =>
+                  u._id !== currentUserId &&
+                  u.displayName?.toLowerCase().includes(search.toLowerCase())
+              )
+              .map((u) => (
+                <div
+                  key={u._id}
+                  onClick={() => onSelectUser(u)}
+                  className="flex items-center gap-3 px-4 py-3 cursor-pointer
+                             hover:bg-[#202C33]"
+                >
+                  <img
+                    src={u.avatar || "/default-avatar.jpeg"}
+                    alt={u.displayName}
+                    className="w-9 h-9 rounded-full object-cover"
+                    onError={(e) => {
+                      e.target.src = "/default-avatar.jpeg";
+                    }}
+                  />
+                  <div className="font-medium">{u.displayName}</div>
+                </div>
+              ))}
+          </div>
+        )}
+
+        {/* CHATS */}
         <div className="flex-1 overflow-y-auto">
-          {filtered.length === 0 ? (
+          {filteredChats.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="text-[#8696A0] text-sm">No chats found</div>
-              <div className="text-[#8696A0] text-xs mt-1">
-                Try a different name
-              </div>
             </div>
           ) : (
-            filtered.map((chat) => {
+            filteredChats.map((chat) => {
+              const isSelected = selectedChat?._id === chat._id;
               const displayUser = chat.displayUser;
-              const isSelfChat = displayUser?._id === currentUserId;
 
               return (
                 <div
                   key={chat._id}
                   onClick={() => onSelectChat(chat)}
-                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-[#202C33]
+                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer
+                    border-b border-[#202C33]
                     ${
-                      selectedChat?._id === chat._id
+                      isSelected
                         ? "bg-[#202C33]"
                         : "bg-[#111B21] hover:bg-[#202C33]"
                     }`}
                 >
-                  <div className="w-9 h-9 rounded-full overflow-hidden bg-[#2A3942]">
-                    <img
-                      src={displayUser?.avatar || "/default-avatar.jpeg"}
-                      onError={(e) => {
-                        e.currentTarget.src = "/default-avatar.jpeg";
-                      }}
-                      alt="avatar"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+                  <img
+                    src={displayUser?.avatar || "/default-avatar.jpeg"}
+                    alt={displayUser?.displayName}
+                    className="w-9 h-9 rounded-full object-cover"
+                    onError={(e) => {
+                      e.target.src = "/default-avatar.jpeg";
+                    }}
+                  />
 
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-[#E9EDEF] truncate">
-                      {isSelfChat
-                        ? "Saved Messages"
-                        : displayUser?.displayName || "Unknown"}
+                    <div className="font-medium truncate">
+                      {displayUser?.displayName || "Unknown"}
                     </div>
 
                     {chat.lastMessage && (
@@ -174,53 +175,43 @@ export default function ChatList({
           )}
         </div>
 
+        {/* FOOTER */}
         <div className="border-t border-[#202C33] px-4 py-3">
           {!currentUser ? (
             <button
               onClick={onRequireAuth}
               className="w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-[#202C33]"
             >
-              <div className="w-10 h-10 rounded-full bg-[#2A3942] flex items-center justify-center">
-                👤
-              </div>
-              <div className="text-left">
-                <div className="text-sm font-medium">Login to Chirp</div>
-                <div className="text-xs text-[#8696A0]">
-                  Sign in to start chatting
-                </div>
-              </div>
+              👤 Login to Chirp
             </button>
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-[#202C33] cursor-pointer">
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2A3942]">
-                    <img
-                      src={currentUser.avatar || "/default-avatar.jpeg"}
-                      onError={(e) => {
-                        e.currentTarget.src = "/default-avatar.jpeg";
-                      }}
-                      alt="profile"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+                <button className="w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-[#202C33]">
+                  <img
+                    src={currentUser.avatar || "/default-avatar.jpeg"}
+                    alt={currentUser.displayName}
+                    className="w-10 h-10 rounded-full object-cover"
+                    onError={(e) => {
+                      e.target.src = "/default-avatar.jpeg";
+                    }}
+                  />
                   <div className="text-left">
                     <div className="text-sm font-medium">
-                      {currentUser.displayName || "You"}
+                      {currentUser.displayName}
                     </div>
-                    <div className="text-xs text-[#8696A0]">@{currentUser.userName || "user"}</div>
+                    <div className="text-xs text-[#8696A0]">
+                      @{currentUser.userName}
+                    </div>
                   </div>
                 </button>
               </DropdownMenuTrigger>
 
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={onEditProfile}>
                   ✎ Edit Profile
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={onLogout}
-                  className="text-red-500"
-                >
+                <DropdownMenuItem onClick={onLogout} className="text-red-500">
                   ⊗ Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -231,7 +222,7 @@ export default function ChatList({
 
       <div
         onMouseDown={() => (resizing.current = true)}
-        className="w-[4px] cursor-col-resize bg-black hover:bg-black/80"
+        className="w-[4px] cursor-col-resize bg-black"
       />
     </>
   );

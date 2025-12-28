@@ -19,7 +19,7 @@ const userSchema = new mongoose.Schema(
     userName: {
       type: String,
       unique: true,
-      sparse: true, // allows null but still unique
+      sparse: true, 
       lowercase: true,
       trim: true,
       minlength: 3,
