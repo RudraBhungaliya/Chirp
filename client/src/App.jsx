@@ -15,52 +15,51 @@ export default function App() {
   const [users, setUsers] = useState([]);
   const [showAuth, setShowAuth] = useState(false);
   const [showProfileEdit, setShowProfileEdit] = useState(false);
-  const [showInitialProfileSetup, setShowInitialProfileSetup] = useState(needsProfile);
+  const [showInitialProfileSetup, setShowInitialProfileSetup] =
+    useState(needsProfile);
 
-  // Only initialize chats after profile is complete
+  useEffect(() => {
+    if (!token) return;
+
+    const fetchUsers = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/users`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await res.json();
+        setUsers(data);
+      } catch (err) {
+        console.error("Error fetching users:", err);
+      }
+    };
+
+    fetchUsers();
+  }, [token]);
+
   useEffect(() => {
     if (!user || !token || needsProfile) {
       setChats([]);
-      setUsers([]);
       setSelectedChat(null);
       return;
     }
 
-    const initializeChatsAndUsers = async () => {
+    const fetchChats = async () => {
       try {
-        // Fetch all users
-        const usersRes = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/users`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        const allUsers = await usersRes.json();
-        setUsers(allUsers);
-      } catch (error) {
-        console.error("Error fetching users:", error);
-      }
-
-      try {
-        // Fetch all chats
-        const chatsRes = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/chats`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        const allChats = await chatsRes.json();
-        setChats(allChats);
-      } catch (error) {
-        console.error("Error fetching chats:", error);
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/chats`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await res.json();
+        setChats(data);
+      } catch (err) {
+        console.error("Error fetching chats:", err);
       }
     };
 
-    initializeChatsAndUsers();
+    fetchChats();
   }, [user, token, needsProfile]);
 
   const handleProfileUpdate = (updatedUser) => {
@@ -75,19 +74,16 @@ export default function App() {
   const handleSelectUser = async (selectedUser) => {
     try {
       // Create or get chat with the selected user
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/chats`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            userId: selectedUser._id,
-          }),
-        }
-      );
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/chats`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId: selectedUser._id,
+        }),
+      });
 
       if (!res.ok) {
         console.error("Failed to create/get chat");
@@ -129,12 +125,9 @@ export default function App() {
       onContextMenu={(e) => e.preventDefault()}
     >
       <ChatList
-        chats={chats}
         users={users}
-        selectedChat={selectedChat}
         onSelectChat={setSelectedChat}
         onSelectUser={handleSelectUser}
-        currentUserId={user?._id}
         currentUser={user}
         onRequireAuth={() => setShowAuth(true)}
         onEditProfile={() => setShowProfileEdit(true)}
@@ -162,7 +155,7 @@ export default function App() {
       )}
 
       {user && showProfileEdit && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
           onClick={() => setShowProfileEdit(false)}
         >

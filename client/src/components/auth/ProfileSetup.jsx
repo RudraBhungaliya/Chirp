@@ -1,7 +1,11 @@
 import { useState, useRef } from "react";
 import { useAuth } from "../../context/authContext";
 
-export default function ProfileSetup({ isModal = false, onClose = null, onProfileUpdate = null }) {
+export default function ProfileSetup({
+  isModal = false,
+  onClose = null,
+  onProfileUpdate = null,
+}) {
   const { token, user, login } = useAuth();
 
   const fileInputRef = useRef(null);
@@ -21,11 +25,18 @@ export default function ProfileSetup({ isModal = false, onClose = null, onProfil
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Avatar must be less than 5MB");
+    // STRICT avatar size limit (base64-safe)
+    if (file.size > 300 * 1024) {
+      setError("Avatar must be under 300KB");
       return;
     }
+
+    const isValidImageSrc = (src) => {
+      if (!src) return false;
+      if (src.startsWith("data:image/")) return true;
+      if (src.startsWith("http://") || src.startsWith("https://")) return true;
+      return false;
+    };
 
     // Validate file type
     if (!file.type.startsWith("image/")) {
@@ -57,25 +68,24 @@ export default function ProfileSetup({ isModal = false, onClose = null, onProfil
     setError("");
 
     try {
-      const endpoint = isModal ? "/api/users/profile" : "/api/users/complete-profile";
+      const endpoint = isModal
+        ? "/api/users/profile"
+        : "/api/users/complete-profile";
       const method = isModal ? "PUT" : "POST";
 
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL}${endpoint}`,
-        {
-          method,
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            userName: form.userName,
-            displayName: form.displayName,
-            bio: form.bio,
-            ...(form.avatar && { avatar: form.avatar }),
-          }),
-        }
-      );
+      const res = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userName: form.userName,
+          displayName: form.displayName,
+          bio: form.bio,
+          ...(form.avatar && { avatar: form.avatar }),
+        }),
+      });
 
       if (!res.ok) {
         const errorData = await res.json();
@@ -205,9 +215,16 @@ export default function ProfileSetup({ isModal = false, onClose = null, onProfil
           <div className="w-24 h-24 rounded-full overflow-hidden bg-[#2A3942] flex items-center justify-center mb-3">
             {avatarPreview ? (
               <img
-                src={avatarPreview}
+                src={
+                  isValidImageSrc(avatarPreview)
+                    ? avatarPreview
+                    : "/default-avatar.jpeg"
+                }
                 alt="avatar preview"
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.src = "/default-avatar.jpeg";
+                }}
               />
             ) : (
               <span className="text-3xl">👤</span>

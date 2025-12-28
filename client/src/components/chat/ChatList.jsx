@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
-import axios from "axios";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,12 +9,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export default function ChatList({
-  selectedChat,
-  onSelectChat,
   onSelectUser,
   users = [],
   chats = [],
-  currentUserId,
   currentUser,
   onRequireAuth,
   onEditProfile,
@@ -23,34 +20,41 @@ export default function ChatList({
   const [search, setSearch] = useState("");
   const [width, setWidth] = useState(360);
   const resizing = useRef(false);
+  const currentUserId = currentUser;
 
-  const filteredChats = chats
-    .map((chat) => {
-      const displayUser =
-        chat.participants?.find((p) => p._id !== currentUserId) || null;
+  const sidebarItems = users
+    .map((u) => {
+      const isSelf = u._id === currentUser;
 
-      return { ...chat, displayUser };
+      const chat = isSelf
+        ? chats.find(
+            (c) =>
+              c.participants.length === 1 &&
+              c.participants[0]._id === currentUser
+          )
+        : chats.find(
+            (c) =>
+              c.participants.length === 2 &&
+              c.participants.some((p) => p._id === currentUser._id) &&
+              c.participants.some((p) => p._id === u._id)
+          );
+
+      return {
+        user: u,
+        chat: chat || null,
+        lastMessage: chat?.lastMessage || null,
+        updatedAt:
+          chat?.lastMessage?.createdAt || new Date(u.createdAt || 0).getTime(),
+        isSelf,
+      };
     })
-    .filter((chat) =>
-      chat.displayUser?.displayName
-        ?.toLowerCase()
-        .includes(search.toLowerCase())
+    .filter(({ user }) =>
+      (user.displayName || "").toLowerCase().includes(search.toLowerCase())
     )
     .sort((a, b) => {
-      const tA = a.lastMessage?.createdAt
-        ? new Date(a.lastMessage.createdAt).getTime()
-        : 0;
-      const tB = b.lastMessage?.createdAt
-        ? new Date(b.lastMessage.createdAt).getTime()
-        : 0;
-
-      if (tA !== tB) return tB - tA;
-
-      return (a.displayUser?.displayName || "").localeCompare(
-        b.displayUser?.displayName || "",
-        undefined,
-        { sensitivity: "base" }
-      );
+      const tA = new Date(a.updatedAt).getTime();
+      const tB = new Date(b.updatedAt).getTime();
+      return tB - tA;
     });
 
   useEffect(() => {
@@ -80,98 +84,58 @@ export default function ChatList({
       >
         {/* SEARCH */}
         <div className="px-3 py-2">
-          <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8696A0]">
-              🔍
-            </span>
-
-            <Input
-              placeholder="Search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-11 pl-11 pr-10 rounded-full bg-[#202C33]
-                         text-[#E9EDEF] placeholder:text-[#8696A0]
-                         border-none focus-visible:ring-0"
-            />
-          </div>
+          <Input
+            placeholder="Search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-11 rounded-full bg-[#202C33]
+                       text-[#E9EDEF] placeholder:text-[#8696A0]
+                       border-none focus-visible:ring-0"
+          />
         </div>
 
-        {/* USERS (START NEW CHAT) */}
-        {users.length > 0 && (
-          <div className="border-b border-[#202C33]">
-            {users
-              .filter(
-                (u) =>
-                  u._id !== currentUserId &&
-                  u.displayName?.toLowerCase().includes(search.toLowerCase())
-              )
-              .map((u) => (
-                <div
-                  key={u._id}
-                  onClick={() => onSelectUser(u)}
-                  className="flex items-center gap-3 px-4 py-3 cursor-pointer
-                             hover:bg-[#202C33]"
-                >
-                  <img
-                    src={u.avatar || "/default-avatar.jpeg"}
-                    alt={u.displayName}
-                    className="w-9 h-9 rounded-full object-cover"
-                    onError={(e) => {
-                      e.target.src = "/default-avatar.jpeg";
-                    }}
-                  />
-                  <div className="font-medium">{u.displayName}</div>
-                </div>
-              ))}
-          </div>
-        )}
-
-        {/* CHATS */}
+        {/* SIDEBAR LIST */}
         <div className="flex-1 overflow-y-auto">
-          {filteredChats.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="text-[#8696A0] text-sm">No chats found</div>
+          {sidebarItems.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-[#8696A0] text-sm">
+              No chats found
             </div>
           ) : (
-            filteredChats.map((chat) => {
-              const isSelected = selectedChat?._id === chat._id;
-              const displayUser = chat.displayUser;
+            sidebarItems.map(({ user, lastMessage }) => (
+              <div
+                key={user._id}
+                onClick={() => {
+                  if (user._id === currentUser._id) {
+                    onSelectUser({ ...user, isSelf: true });
+                  } else {
+                    onSelectUser(user);
+                  }
+                }}
+                className="flex items-center gap-3 px-4 py-3 cursor-pointer
+                           hover:bg-[#202C33]"
+              >
+                <img
+                  src={
+                    user.avatar?.trim() ? user.avatar : "/default-avatar.jpeg"
+                  }
+                  alt={user.displayName}
+                  className="w-9 h-9 rounded-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = "/default-avatar.jpeg";
+                  }}
+                />
 
-              return (
-                <div
-                  key={chat._id}
-                  onClick={() => onSelectChat(chat)}
-                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer
-                    border-b border-[#202C33]
-                    ${
-                      isSelected
-                        ? "bg-[#202C33]"
-                        : "bg-[#111B21] hover:bg-[#202C33]"
-                    }`}
-                >
-                  <img
-                    src={displayUser?.avatar || "/default-avatar.jpeg"}
-                    alt={displayUser?.displayName}
-                    className="w-9 h-9 rounded-full object-cover"
-                    onError={(e) => {
-                      e.target.src = "/default-avatar.jpeg";
-                    }}
-                  />
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">{user.displayName}</div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">
-                      {displayUser?.displayName || "Unknown"}
+                  {lastMessage && (
+                    <div className="text-xs text-[#8696A0] truncate">
+                      {lastMessage.content}
                     </div>
-
-                    {chat.lastMessage && (
-                      <div className="text-xs text-[#8696A0] truncate">
-                        {chat.lastMessage.content}
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
-              );
-            })
+              </div>
+            ))
           )}
         </div>
 
@@ -180,21 +144,17 @@ export default function ChatList({
           {!currentUser ? (
             <button
               onClick={onRequireAuth}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-[#202C33]"
+              className="w-full text-left hover:text-white"
             >
               👤 Login to Chirp
             </button>
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-[#202C33]">
+                <button className="flex items-center gap-3">
                   <img
                     src={currentUser.avatar || "/default-avatar.jpeg"}
-                    alt={currentUser.displayName}
                     className="w-10 h-10 rounded-full object-cover"
-                    onError={(e) => {
-                      e.target.src = "/default-avatar.jpeg";
-                    }}
                   />
                   <div className="text-left">
                     <div className="text-sm font-medium">

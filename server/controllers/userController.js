@@ -6,7 +6,7 @@ export const getMe = async (req, res) => {
 };
 
 export const completeProfile = async (req, res) => {
-  const { userName, displayName, bio } = req.body;
+  const { userName, displayName, bio, avatar } = req.body;
 
   if (!userName || !displayName) {
     return res
@@ -19,18 +19,20 @@ export const completeProfile = async (req, res) => {
     return res.status(400).json({ msg: "Username already taken" });
   }
 
-  const user = await User.findByIdAndUpdate(
-    req.userId,
-    {
-      userName,
-      displayName,
-      bio,
-      isProfileComplete: true,
-    },
-    {
-      new: true,
-    }
-  );
+  const updateData = {
+    userName,
+    displayName,
+    bio,
+    isProfileComplete: true,
+  };
+
+  if (avatar) {
+    updateData.avatar = avatar;
+  }
+
+  const user = await User.findByIdAndUpdate(req.userId, updateData, {
+    new: true,
+  });
 
   res.json(user);
 };
@@ -85,16 +87,11 @@ export const searchUsers = async (req, res) => {
 
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find({
-      _id: { $ne: req.userId },
-    }).select("_id userName displayName avatar isActive ");
+    const users = await User.find({})
+      .select("_id userName displayName avatar createdAt")
+      .sort({ createdAt: 1 });
 
-    // Remove duplicates if any
-    const uniqueUsers = Array.from(
-      new Map(users.map((user) => [user._id.toString(), user])).values()
-    );
-
-    res.status(200).json(uniqueUsers);
+    res.status(200).json(users);
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
