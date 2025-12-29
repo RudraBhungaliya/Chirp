@@ -459,7 +459,11 @@ ${msg.type !== "text" ? " p-1" : ""}
 `}
                       >
                         {renderMessage(msg)}
-                        <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-white opacity-80">
+                        <div
+                          className={`mt-1 flex items-center justify-end gap-1 text-[10px] opacity-70 ${
+                            msg.sender === "me" ? "text-white" : "text-black"
+                          }`}
+                        >
                           <span>{formatTime(msg.timestamp)}</span>
 
                           {msg.sender === "me" && (
