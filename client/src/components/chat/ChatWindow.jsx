@@ -286,10 +286,15 @@ export default function ChatWindow({ chat, user, onRequireAuth }) {
   }, [chat]);
 
   const renderMessage = (msg) => {
-    if (msg.deleted)
+    if (msg.deleted) {
+      const isMe = msg.sender === "me";
+
       return (
-        <span className="italic text-white">You deleted this message</span>
+        <span className={`italic ${isMe ? "text-white" : "text-gray-500"}`}>
+          {isMe ? "You deleted this message" : "This message was deleted"}
+        </span>
       );
+    }
 
     if (msg.type === "text") return msg.text;
 
