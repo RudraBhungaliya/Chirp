@@ -5,7 +5,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import App from "./App";
 import { AuthProvider } from "./context/authContext";
 import { SocketProvider } from "./context/socketContext";
-import "./index.css";   // 👈 CSS included here
+import "./index.css"; 
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
