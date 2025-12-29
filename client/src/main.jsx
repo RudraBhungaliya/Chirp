@@ -4,6 +4,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 
 import App from "./App";
 import { AuthProvider } from "./context/authContext";
+import { SocketProvider } from "./context/socketContext";
 import "./index.css";   // 👈 CSS included here
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -12,8 +13,11 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}
     >
       <AuthProvider>
-        <App />
+        <SocketProvider>
+          <App />
+        </SocketProvider>
       </AuthProvider>
     </GoogleOAuthProvider>
   </React.StrictMode>
 );
+

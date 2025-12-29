@@ -171,9 +171,7 @@ export default function ChatWindow({ chat, user, onRequireAuth }) {
         // Update the message with server id
         setMessages((prev) =>
           prev.map((m) =>
-            m.timestamp === msg.timestamp
-              ? { ...m, id: savedMsg._id }
-              : m
+            m.timestamp === msg.timestamp ? { ...m, id: savedMsg._id } : m
           )
         );
       }
@@ -368,8 +366,8 @@ export default function ChatWindow({ chat, user, onRequireAuth }) {
               {chat.participants && chat.participants.length > 0 ? (
                 <img
                   src={
-                    chat.participants.find((p) => p._id !== user._id)
-                      ?.avatar || "/default-avatar.jpeg"
+                    chat.participants.find((p) => p._id !== user._id)?.avatar ||
+                    "/default-avatar.jpeg"
                   }
                   alt="avatar"
                   className="w-full h-full object-cover"

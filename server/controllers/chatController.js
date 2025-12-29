@@ -8,19 +8,36 @@ export const createChat = async (req, res) => {
 
     if (!userId) return res.status(400).json({ msg: "UserId is required" });
 
-    // if exist
-    let chat = await Chat.findOne({
-      participants: { $all: [myId, userId] },
-    }).populate("participants", "userName displayName avatar");
+    let chat;
 
-    if (chat) return res.status(200).json(chat);
+    // Handle self-chat (messaging yourself)
+    if (myId === userId) {
+      // For self-chat, find existing self-chat or create new one
+      chat = await Chat.findOne({
+        participants: { $size: 1, $in: [myId] },
+      }).populate("participants", "userName displayName avatar isActive lastSeen");
 
-    // create new chat
-    chat = await Chat.create({
-      participants: [myId, userId],
-    });
+      if (chat) return res.status(200).json(chat);
 
-    chat = await chat.populate("participants", "userName displayName avatar");
+      // Create new self-chat with single participant
+      chat = await Chat.create({
+        participants: [myId],
+      });
+    } else {
+      // For regular chats, find chat with both users
+      chat = await Chat.findOne({
+        participants: { $all: [myId, userId] },
+      }).populate("participants", "userName displayName avatar isActive lastSeen");
+
+      if (chat) return res.status(200).json(chat);
+
+      // Create new chat
+      chat = await Chat.create({
+        participants: [myId, userId],
+      });
+    }
+
+    chat = await chat.populate("participants", "userName displayName avatar isActive lastSeen");
 
     res.status(201).json(chat);
   } catch (err) {
@@ -33,7 +50,7 @@ export const getChats = async (req, res) => {
         const chats = await Chat.find( {
             participants : req.userId,
         } )
-        .populate("participants", "userName displayName avatar")
+        .populate("participants", "userName displayName avatar isActive lastSeen")
         .populate("lastMessage")
         .sort( { updatedAt : -1 } );
 
@@ -42,6 +59,4 @@ export const getChats = async (req, res) => {
     catch(err){
         res.status(500).json( { msg : err.message } );
     }
-
-
 };

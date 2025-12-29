@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // components
 import { useAuth } from "./context/authContext";
+import { useSocket } from "./context/socketContext";
 import GoogleLoginButton from "./components/auth/GoogleLoginButton";
 import ProfileSetup from "./components/auth/ProfileSetup";
 import ChatList from "./components/chat/ChatList";
@@ -9,6 +10,7 @@ import ChatWindow from "./components/chat/ChatWindow";
 
 export default function App() {
   const { user, token, loading, needsProfile, login, logout } = useAuth();
+  const { socket, disconnect } = useSocket();
 
   const [selectedChat, setSelectedChat] = useState(null);
   const [chats, setChats] = useState([]);
@@ -19,7 +21,7 @@ export default function App() {
     useState(needsProfile);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !socket) return;
 
     const fetchUsers = async () => {
       try {
@@ -35,8 +37,21 @@ export default function App() {
       }
     };
 
+    // Listen for presence updates
+    socket.on("presence_update", ({ userId, isActive, lastSeen }) => {
+      setUsers((prevUsers) =>
+        prevUsers.map((u) =>
+          u._id === userId ? { ...u, isActive, lastSeen } : u
+        )
+      );
+    });
+
     fetchUsers();
-  }, [token]);
+
+    return () => {
+      socket.off("presence_update");
+    };
+  }, [token, socket]);
 
   useEffect(() => {
     if (!user || !token || needsProfile) {
@@ -107,7 +122,15 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    // Mark current user as offline immediately
+    setUsers((prevUsers) =>
+      prevUsers.map((u) =>
+        u._id === user._id ? { ...u, isActive: false, lastSeen: new Date() } : u
+      )
+    );
+    
     logout();
+    disconnect();
     setSelectedChat(null);
     setChats([]);
     setUsers([]);

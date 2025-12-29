@@ -47,8 +47,8 @@ export default function ChatList({
       const chat = isSelf
         ? chats.find(
             (c) =>
-              c.participants.length === 1 &&
-              c.participants[0]._id === currentUser
+              (c.participants.length === 1 && c.participants[0]._id === currentUser) ||
+              (c.participants.length === 2 && c.participants.every((p) => p._id === currentUser))
           )
         : chats.find(
             (c) =>
