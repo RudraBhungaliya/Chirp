@@ -8,6 +8,24 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+const formatLastSeen = (lastSeen) => {
+  if (!lastSeen) return "offline";
+
+  const now = new Date();
+  const last = new Date(lastSeen);
+  const diffMs = now - last;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "active now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return last.toLocaleDateString();
+};
+
 export default function ChatList({
   onSelectUser,
   users = [],
@@ -114,23 +132,41 @@ export default function ChatList({
                 className="flex items-center gap-3 px-4 py-3 cursor-pointer
                            hover:bg-[#202C33]"
               >
-                <img
-                  src={
-                    user.avatar?.trim() ? user.avatar : "/default-avatar.jpeg"
-                  }
-                  alt={user.displayName}
-                  className="w-9 h-9 rounded-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.src = "/default-avatar.jpeg";
-                  }}
-                />
+                <div className="relative">
+                  <img
+                    src={
+                      user.avatar?.trim() ? user.avatar : "/default-avatar.jpeg"
+                    }
+                    alt={user.displayName}
+                    className="w-10 h-10 rounded-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = "/default-avatar.jpeg";
+                    }}
+                  />
+                  {user.isActive && (
+                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border border-[#0B141A]" />
+                  )}
+                </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{user.displayName}</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium truncate">
+                      {user.displayName}
+                    </span>
+                    {!user.isActive && user.lastSeen && (
+                      <span className="text-xs text-[#8696A0] whitespace-nowrap">
+                        {formatLastSeen(user.lastSeen)}
+                      </span>
+                    )}
+                  </div>
 
-                  {lastMessage && (
+                  {lastMessage ? (
                     <div className="text-xs text-[#8696A0] truncate">
                       {lastMessage.content}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-[#8696A0]">
+                      {user.isActive ? "active now" : formatLastSeen(user.lastSeen)}
                     </div>
                   )}
                 </div>

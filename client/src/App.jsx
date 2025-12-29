@@ -110,6 +110,7 @@ export default function App() {
     logout();
     setSelectedChat(null);
     setChats([]);
+    setUsers([]);
     setShowAuth(false);
   };
 

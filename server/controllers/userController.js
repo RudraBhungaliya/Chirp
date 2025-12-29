@@ -88,7 +88,7 @@ export const searchUsers = async (req, res) => {
 export const getAllUsers = async (req, res) => {
   try {
     const users = await User.find({})
-      .select("_id userName displayName avatar createdAt")
+      .select("_id userName displayName avatar createdAt isActive lastSeen")
       .sort({ createdAt: 1 });
 
     res.status(200).json(users);

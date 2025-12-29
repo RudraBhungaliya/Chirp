@@ -63,12 +63,22 @@ io.use((socket, next) => {
 io.on("connection", async (socket) => {
   try {
     // mark user online
-    await User.findByIdAndUpdate(socket.userId, {
-      isActive: true,
-      lastSeen: new Date(),
-    });
+    const user = await User.findByIdAndUpdate(
+      socket.userId,
+      {
+        isActive: true,
+        lastSeen: new Date(),
+      },
+      { new: true }
+    );
 
     console.log("User connected:", socket.userId);
+
+    io.emit("presence_update", {
+      userId: socket.userId,
+      isActive: true,
+      lastSeen: user.lastSeen,
+    });
 
     socket.on("join_chat", (chatId) => {
       socket.join(chatId);
@@ -94,9 +104,19 @@ io.on("connection", async (socket) => {
     });
 
     socket.on("disconnect", async () => {
-      await User.findByIdAndUpdate(socket.userId, {
+      const u = await User.findByIdAndUpdate(
+        socket.userId,
+        {
+          isActive: false,
+          lastSeen: new Date(),
+        },
+        { new: true }
+      );
+
+      io.emit("presence_update", {
+        userId: socket.userId,
         isActive: false,
-        lastSeen: new Date(),
+        lastSeen: u.lastSeen,
       });
 
       console.log("User disconnected:", socket.userId);
