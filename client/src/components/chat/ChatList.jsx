@@ -18,8 +18,8 @@ const formatLastSeen = (lastSeen) => {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return "active now";
-  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffMins < 0.2) return "active now";
+  if (diffMins < 60) return `${Math.max(1, diffMins)}m ago`;
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays < 7) return `${diffDays}d ago`;
 
@@ -47,8 +47,10 @@ export default function ChatList({
       const chat = isSelf
         ? chats.find(
             (c) =>
-              (c.participants.length === 1 && c.participants[0]._id === currentUser) ||
-              (c.participants.length === 2 && c.participants.every((p) => p._id === currentUser))
+              (c.participants.length === 1 &&
+                c.participants[0]._id === currentUser) ||
+              (c.participants.length === 2 &&
+                c.participants.every((p) => p._id === currentUser))
           )
         : chats.find(
             (c) =>
@@ -166,7 +168,9 @@ export default function ChatList({
                     </div>
                   ) : (
                     <div className="text-xs text-[#8696A0]">
-                      {user.isActive ? "active now" : formatLastSeen(user.lastSeen)}
+                      {user.isActive
+                        ? "active now"
+                        : formatLastSeen(user.lastSeen)}
                     </div>
                   )}
                 </div>

@@ -103,6 +103,8 @@ export default function ChatWindow({ chat, user, onRequireAuth }) {
     fetchMessages();
   }, [chat, token, user]);
 
+  const otherUser = chat?.participants?.find((p) => p._id !== user._id) || user;
+
   // Socket.io setup for real-time messages
   useEffect(() => {
     if (!token || !chat) return;
@@ -368,33 +370,19 @@ export default function ChatWindow({ chat, user, onRequireAuth }) {
         {chat ? (
           <>
             <div className="w-9 h-9 rounded-full overflow-hidden bg-[#2A3942] border border-black/40">
-              {chat.participants && chat.participants.length > 0 ? (
-                <img
-                  src={
-                    chat.participants.find((p) => p._id !== user._id)?.avatar ||
-                    "/default-avatar.jpeg"
-                  }
-                  alt="avatar"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.src = "/default-avatar.jpeg";
-                  }}
-                />
-              ) : (
-                <img
-                  src="/default-avatar.jpeg"
-                  alt="avatar"
-                  className="w-full h-full object-cover"
-                />
-              )}
+              <img
+                src={otherUser.avatar || "/default-avatar.jpeg"}
+                alt="avatar"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.src = "/default-avatar.jpeg";
+                }}
+              />
             </div>
 
-            {chat.participants
-              ? chat.participants
-                  .filter((p) => p._id !== user._id)
-                  .map((p) => p.displayName)
-                  .join(", ") || "Unknown"
-              : "Unknown"}
+            {otherUser._id === user._id
+              ? "You (Personal Chat)"
+              : otherUser.displayName}
           </>
         ) : (
           "Chirp"

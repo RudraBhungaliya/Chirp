@@ -19,7 +19,7 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = ({ token, user }) => {
+  const login = ({ token, user }) => {// user in json
     localStorage.setItem("token", token);
     localStorage.setItem("user", JSON.stringify(user));
 
