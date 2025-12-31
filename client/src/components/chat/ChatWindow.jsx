@@ -136,6 +136,7 @@ export default function ChatWindow({ chat, user }) {
       return;
     }
 
+    // create base64 preview for immediate local display
     const base64 = await fileToBase64(file);
 
     const msg = {
@@ -150,42 +151,63 @@ export default function ChatWindow({ chat, user }) {
       timestamp: Date.now(),
     };
 
-    await pushMessage(msg);
+    // send raw file to server while showing local preview
+    await pushMessage(msg, file);
 
     e.target.value = "";
   };
 
   /* ================= HELPERS ================= */
 
-  const pushMessage = async (msg) => {
+  const pushMessage = async (msg, rawFile) => {
     if (!chat) return;
 
     // show locally
     setMessages((prev) => [...prev, msg]);
 
     try {
-      const body = {
-        content: msg.text || "",
-        type: msg.type || "text",
-        file: msg.file
-          ? { name: msg.file.name, data: msg.file.data, mime: msg.file.mime }
-          : undefined,
-      };
+      if (rawFile) {
+        // upload via multipart/form-data to /file endpoint
+        const form = new FormData();
+        form.append("file", rawFile);
+        form.append("type", msg.type || "document");
 
-      const res = await fetch(`${API}/api/message/${chat._id}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
-      });
+        const res = await fetch(`${API}/api/message/${chat._id}/file`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: form,
+        });
 
-      if (res.ok) {
-        const saved = await res.json();
-        setMessages((prev) =>
-          prev.map((m) => (m.timestamp === msg.timestamp ? { ...m, id: saved._id } : m))
-        );
+        if (res.ok) {
+          const saved = await res.json();
+          // replace temp message with server-saved message (id + file url)
+          setMessages((prev) =>
+            prev.map((m) => (m.timestamp === msg.timestamp ? saved : m))
+          );
+        }
+      } else {
+        const body = {
+          content: msg.text || "",
+          type: msg.type || "text",
+        };
+
+        const res = await fetch(`${API}/api/message/${chat._id}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (res.ok) {
+          const saved = await res.json();
+          setMessages((prev) =>
+            prev.map((m) => (m.timestamp === msg.timestamp ? { ...m, id: saved._id } : m))
+          );
+        }
       }
     } catch (err) {
       console.error("Error sending message:", err);
@@ -216,6 +238,24 @@ export default function ChatWindow({ chat, user }) {
     if (msg.deleted) return <i>Message deleted</i>;
 
     if (msg.type === "text") return msg.text;
+    // Prefer local preview data if present (base64), otherwise use server file url
+    if (msg.file?.data) {
+      const dataUrl = msg.file.data;
+
+      if (msg.type === "image")
+        return <img src={dataUrl} className="rounded-lg max-w-[360px]" />;
+
+      if (msg.type === "video")
+        return <video controls src={dataUrl} className="max-w-[400px]" />;
+
+      if (msg.type === "audio") return <audio controls src={dataUrl} />;
+
+      return (
+        <a href={dataUrl} target="_blank" rel="noreferrer">
+          {msg.file.name}
+        </a>
+      );
+    }
 
     if (!msg.file?.url) return "[File missing]";
 
@@ -227,8 +267,7 @@ export default function ChatWindow({ chat, user }) {
     if (msg.type === "video")
       return <video controls src={url} className="max-w-[400px]" />;
 
-    if (msg.type === "audio")
-      return <audio controls src={url} />;
+    if (msg.type === "audio") return <audio controls src={url} />;
 
     return (
       <a href={url} target="_blank" rel="noreferrer">

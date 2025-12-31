@@ -1,6 +1,7 @@
 import Message from "../models/Message.js";
 import Chat from "../models/Chat.js";
 import { io } from "../server.js";
+import mongoose from "mongoose";
 
 // get messages
 export const getMessages = async (req, res) => {
@@ -108,6 +109,32 @@ export const sendFileMessage = async (req, res) => {
       return res.status(403).json({ msg: "Not authorized" });
     }
 
+    // If multer stored file in memory (buffer), persist to GridFS for permanence
+    let fileUrl = null;
+
+    if (file.buffer) {
+      const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+        bucketName: "uploads",
+      });
+
+      const uploadStream = bucket.openUploadStream(file.originalname, {
+        contentType: file.mimetype,
+      });
+
+      uploadStream.end(file.buffer);
+
+      await new Promise((resolve, reject) => {
+        uploadStream.on("finish", resolve);
+        uploadStream.on("error", reject);
+      });
+
+      const fileId = uploadStream.id;
+      fileUrl = `/api/message/file/${fileId}`;
+    } else {
+      // fallback to disk-based uploads
+      fileUrl = `/uploads/${file.filename}`;
+    }
+
     const message = await Message.create({
       chatId,
       sender: req.userId,
@@ -115,7 +142,7 @@ export const sendFileMessage = async (req, res) => {
       file: {
         name: file.originalname,
         mime: file.mimetype,
-        url: `/uploads/${file.filename}`,
+        url: fileUrl,
         expiresAt:
           type === "video" ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null,
       },
@@ -159,6 +186,34 @@ export const deleteMessage = async (req, res) => {
     await message.save();
 
     res.json(message);
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// serve file from GridFS
+export const getFile = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+      bucketName: "uploads",
+    });
+
+    const _id = new mongoose.Types.ObjectId(id);
+
+    // get file metadata to set content-type
+    const files = await bucket.find({ _id }).toArray();
+    if (!files || files.length === 0) {
+      return res.status(404).json({ msg: "File not found" });
+    }
+
+    const fileDoc = files[0];
+    if (fileDoc.contentType) res.type(fileDoc.contentType);
+
+    const downloadStream = bucket.openDownloadStream(_id);
+    downloadStream.on("error", (err) => res.status(404).end());
+    downloadStream.pipe(res);
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }

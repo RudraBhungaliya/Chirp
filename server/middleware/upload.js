@@ -1,12 +1,6 @@
 import multer from "multer";
-import path from "path";
 
-const storage = multer.diskStorage({
-  destination: "uploads/",
-  filename: (req, file, cb) => {
-    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, unique + path.extname(file.originalname));
-  },
-});
+// Use memory storage so we can persist files to GridFS (MongoDB) instead of ephemeral disk
+const storage = multer.memoryStorage();
 
 export const upload = multer({ storage });
