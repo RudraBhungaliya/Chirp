@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from "react";
-import localforage from "localforage";
 import { connectSocket } from "../../services/socket";
 import { useAuth } from "../../context/authContext";
 
@@ -19,43 +18,29 @@ const FILE_RULES = {
   document: [],
 };
 
-const fileToBase64 = (file) => {
-  return new Promise((resolve, reject) => {
+const fileToBase64 = (file) =>
+  new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
-};
 
-const base64ToBlobUrl = (base64, mime) => {
-  if (!base64 || typeof base64 !== "string" || !base64.includes(",")) {
-    return null;
-  }
-
-  const byteString = atob(base64.split(",")[1]);
-  const ab = new ArrayBuffer(byteString.length);
-  const ia = new Uint8Array(ab);
-
-  for (let i = 0; i < byteString.length; i++) {
-    ia[i] = byteString.charCodeAt(i);
-  }
-
-  const blob = new Blob([ab], { type: mime || "application/octet-stream" });
-  return URL.createObjectURL(blob);
-};
-
-export default function ChatWindow({ chat, user, onRequireAuth }) {
+export default function ChatWindow({ chat, user }) {
   const { token } = useAuth();
+
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [menuOpenFor, setMenuOpenFor] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const bottomRef = useRef(null);
-  const socketRef = useRef(null);
 
+  const socketRef = useRef(null);
+  const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
   const fileTypeRef = useRef("document");
+
+  const API = import.meta.env.VITE_API_URL;
+
+  /* ================= FETCH ================= */
 
   useEffect(() => {
     if (!chat) {
@@ -63,178 +48,151 @@ export default function ChatWindow({ chat, user, onRequireAuth }) {
       return;
     }
 
-    // Fetch messages from backend
-    const fetchMessages = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/message/${chat._id}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+    fetch(`${API}/api/message/${chat._id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((msgs) =>
+        setMessages(
+          msgs.map((m) => ({
+            id: m._id,
+            senderId: m.sender._id,
+            senderName: m.sender.displayName,
+            senderAvatar: m.sender.avatar,
+            type: m.type,
+            text: m.content,
+            file: m.file,
+            deleted: m.deleted,
+            timestamp: new Date(m.createdAt).getTime(),
+          }))
+        )
+      );
+  }, [chat, token]);
 
-        if (res.ok) {
-          const msgs = await res.json();
-          const normalized = msgs.map((msg) => ({
-            id: msg._id,
-            sender: msg.sender._id === user._id ? "me" : msg.sender._id,
-            senderName: msg.sender.displayName,
-            senderAvatar: msg.sender.avatar,
-            type: msg.type,
-            text: msg.content,
-            file: msg.file,
-            deleted: msg.deleted,
-            timestamp: new Date(msg.createdAt).getTime(),
-            seen: true,
-            createdAt: msg.createdAt,
-          }));
-          setMessages(normalized);
-        }
-      } catch (error) {
-        console.error("Error fetching messages:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  /* ================= SOCKET ================= */
 
-    fetchMessages();
-  }, [chat, token, user]);
-
-  const otherUser = chat?.participants?.find((p) => p._id !== user._id) || user;
-
-  // Socket.io setup for real-time messages
   useEffect(() => {
-    if (!token || !chat) return;
+    if (!chat || !token) return;
 
     if (!socketRef.current) {
       socketRef.current = connectSocket(token);
     }
 
     const socket = socketRef.current;
-
-    // Join the chat room
     socket.emit("join_chat", chat._id);
 
-    // Listen for new messages
-    socket.on("new_message", (message) => {
-      const normalized = {
-        id: message._id,
-        sender: message.sender._id === user._id ? "me" : message.sender._id,
-        senderName: message.sender.displayName,
-        senderAvatar: message.sender.avatar,
-        type: message.type,
-        text: message.content,
-        file: message.file,
-        deleted: message.deleted,
-        timestamp: new Date(message.createdAt).getTime(),
-        seen: true,
-        createdAt: message.createdAt,
-      };
-      setMessages((prev) => [...prev, normalized]);
+    socket.on("new_message", (m) => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: m._id,
+          senderId: m.sender._id,
+          senderName: m.sender.displayName,
+          senderAvatar: m.sender.avatar,
+          type: m.type,
+          text: m.content,
+          file: m.file,
+          deleted: m.deleted,
+          timestamp: new Date(m.createdAt).getTime(),
+        },
+      ]);
     });
 
-    return () => {
-      socket.off("new_message");
-    };
-  }, [chat, token, user]);
+    return () => socket.off("new_message");
+  }, [chat, token]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages]);
 
-  const pushMessage = async (msg) => {
-    if (!chat) return;
-
-    try {
-      setMessages((prev) => [...prev, msg]);
-
-      // Send to backend
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/message/${chat._id}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            content: msg.text,
-            type: msg.type,
-            file: msg.file,
-          }),
-        }
-      );
-
-      if (res.ok) {
-        const savedMsg = await res.json();
-        // Update the message with server id
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.timestamp === msg.timestamp ? { ...m, id: savedMsg._id } : m
-          )
-        );
-      }
-    } catch (error) {
-      console.error("Error sending message:", error);
-    }
-  };
+  /* ================= SEND ================= */
 
   const sendText = async () => {
-    if (!input.trim() || !chat) return;
+    if (!input.trim()) return;
 
-    await pushMessage({
+    const msg = {
       id: crypto.randomUUID(),
-      sender: "me",
+      senderId: user._id,
+      senderName: user.displayName,
+      senderAvatar: user.avatar,
       type: "text",
       text: input,
       file: null,
       deleted: false,
-      seen: false,
       timestamp: Date.now(),
-    });
+    };
+
+    await pushMessage(msg);
 
     setInput("");
   };
 
   const handleFileSelect = async (e) => {
     const file = e.target.files[0];
-    if (!file || !chat) return;
+    if (!file) return;
 
     if (file.size > MAX_FILE_SIZE) {
-      alert("File too large. Max 350MB allowed.");
-      e.target.value = "";
-      return;
-    }
-
-    const allowed = FILE_RULES[fileTypeRef.current];
-    if (allowed.length && !allowed.some((p) => file.type.startsWith(p))) {
-      alert(`Please select a ${fileTypeRef.current} file`);
-      e.target.value = "";
+      alert("File too large");
       return;
     }
 
     const base64 = await fileToBase64(file);
 
-    await pushMessage({
+    const msg = {
       id: crypto.randomUUID(),
-      sender: "me",
+      senderId: user._id,
+      senderName: user.displayName,
+      senderAvatar: user.avatar,
       type: fileTypeRef.current,
       text: "",
-      file: {
-        name: file.name,
-        data: base64,
-        mime: file.type,
-      },
+      file: { name: file.name, data: base64, mime: file.type },
       deleted: false,
-      seen: false,
       timestamp: Date.now(),
-    });
+    };
+
+    await pushMessage(msg);
 
     e.target.value = "";
   };
+
+  /* ================= HELPERS ================= */
+
+  const pushMessage = async (msg) => {
+    if (!chat) return;
+
+    // show locally
+    setMessages((prev) => [...prev, msg]);
+
+    try {
+      const body = {
+        content: msg.text || "",
+        type: msg.type || "text",
+        file: msg.file
+          ? { name: msg.file.name, data: msg.file.data, mime: msg.file.mime }
+          : undefined,
+      };
+
+      const res = await fetch(`${API}/api/message/${chat._id}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        const saved = await res.json();
+        setMessages((prev) =>
+          prev.map((m) => (m.timestamp === msg.timestamp ? { ...m, id: saved._id } : m))
+        );
+      }
+    } catch (err) {
+      console.error("Error sending message:", err);
+    }
+  };
+
+  const isMe = (msg) => !!user && msg.senderId === user._id;
 
   const formatTime = (ts) =>
     ts
@@ -244,308 +202,130 @@ export default function ChatWindow({ chat, user, onRequireAuth }) {
         })
       : "";
 
-  const deleteMessage = async (id) => {
-    try {
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/message/${chat._id}/${id}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (res.ok) {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === id ? { ...m, deleted: true, text: "", file: null } : m
-          )
-        );
-      }
-    } catch (error) {
-      console.error("Error deleting message:", error);
-    }
+  const getHeaderUser = () => {
+    if (!chat) return null;
+    if (chat.participants.every((p) => p._id === user._id)) return user;
+    return chat.participants.find((p) => p._id !== user._id);
   };
 
-  useEffect(() => {
-    if (!chat || messages.length === 0) return;
+  const headerUser = getHeaderUser();
 
-    let changed = false;
-
-    const updated = messages.map((m) => {
-      if (m.sender === "me" && m.seen === false) {
-        changed = true;
-        return { ...m, seen: true };
-      }
-      return m;
-    });
-
-    if (changed) {
-      setMessages(updated);
-      localforage.setItem(`message:${chat.id}`, updated);
-    }
-  }, [chat]);
+  /* ================= RENDER MESSAGE ================= */
 
   const renderMessage = (msg) => {
-    if (msg.deleted) {
-      const isMe = msg.sender === "me";
-
-      return (
-        <span className={`italic ${isMe ? "text-white" : "text-gray-500"}`}>
-          {isMe ? "You deleted this message" : "This message was deleted"}
-        </span>
-      );
-    }
+    if (msg.deleted) return <i>Message deleted</i>;
 
     if (msg.type === "text") return msg.text;
 
-    if (!msg.file) return "Unsupported message";
+    if (!msg.file?.url) return "[File missing]";
 
-    if (msg.type === "image") {
-      const blobUrl = base64ToBlobUrl(msg.file?.data, msg.file?.mime);
-      if (!blobUrl)
-        return <span className="text-gray-400">[Broken image]</span>;
+    const url = `${API}${msg.file.url}`;
 
-      return (
-        <a href={blobUrl} target="_blank" rel="noopener noreferrer">
-          <img
-            src={blobUrl}
-            className="rounded-lg max-w-[360px] max-h-[260px] object-cover"
-          />
-        </a>
-      );
-    }
+    if (msg.type === "image")
+      return <img src={url} className="rounded-lg max-w-[360px]" />;
 
     if (msg.type === "video")
-      return (
-        <video
-          controls
-          className="rounded-lg max-w-[400px] max-h-[350px] bg-black"
-        >
-          <source src={msg.file.data} />
-        </video>
-      );
+      return <video controls src={url} className="max-w-[400px]" />;
 
     if (msg.type === "audio")
-      return (
-        <audio controls>
-          <source src={msg.file.data} />
-        </audio>
-      );
-
-    const blobUrl = base64ToBlobUrl(msg.file?.data, msg.file?.mime);
-    if (!blobUrl)
-      return <span className="text-gray-400">[Broken attachment]</span>;
+      return <audio controls src={url} />;
 
     return (
-      <div className="flex items-center gap-3 p-3 rounded-lg max-w-[280px] bg-transparent">
-        <div className="text-2xl text-white/90">📄</div>
-
-        <div className="flex-1 overflow-hidden">
-          <div className="text-sm font-medium truncate text-white">
-            {msg.file.name}
-          </div>
-          <div className="text-xs text-white/70">Click to open</div>
-        </div>
-
-        <a
-          href={blobUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-white font-medium text-sm hover:underline"
-        >
-          Open
-        </a>
-      </div>
+      <a href={url} target="_blank" rel="noreferrer">
+        {msg.file.name}
+      </a>
     );
   };
 
+  /* ================= UI ================= */
+
   return (
     <div className="flex-1 flex flex-col bg-[#0B141A]">
-      <div
-        className="h-14 border-b bg-[#0B141A] flex items-center gap-3 px-4 font-semibold
-                sticky top-0 z-50 shadow-md text-white"
-      >
+      {/* HEADER */}
+      <div className="h-14 flex items-center gap-3 px-4 border-b text-white">
         {chat ? (
-          <>
-            <div className="w-9 h-9 rounded-full overflow-hidden bg-[#2A3942] border border-black/40">
+          headerUser && (
+            <>
               <img
-                src={otherUser.avatar || "/default-avatar.jpeg"}
-                alt="avatar"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.src = "/default-avatar.jpeg";
-                }}
+                src={headerUser.avatar || "/default-avatar.jpeg"}
+                className="w-9 h-9 rounded-full object-cover"
               />
-            </div>
-
-            {otherUser._id === user._id
-              ? "You (Personal Chat)"
-              : otherUser.displayName}
-          </>
+              <span>
+                {headerUser._id === user?._id
+                  ? `${headerUser.displayName} (You)`
+                  : headerUser.displayName}
+              </span>
+            </>
+          )
         ) : (
-          "Chirp"
+          <div className="font-semibold">Chirp</div>
         )}
       </div>
 
-      <div className="flex-1 relative">
+      {/* MESSAGES */}
+      <div className="flex-1 overflow-y-auto px-6 py-4">
         {!chat ? (
-          <div className="absolute inset-0 flex items-center justify-center text-center">
-            <div>
-              <div className="text-4xl mb-4">🐥</div>
-              <h2 className="text-2xl text-white font-semibold">
-                Chirp for Desktop
-              </h2>
-              <p className="text-gray-400">
-                Messages are end-to-end encrypted.
-              </p>
-            </div>
+          <div className="h-full flex flex-col items-center justify-center text-center text-white/90">
+            <div className="text-4xl mb-4">🐥</div>
+            <h2 className="text-2xl font-semibold">Chirp for Desktop</h2>
+            <p className="text-gray-400 mt-2">Messages are end-to-end encrypted.</p>
           </div>
         ) : (
-          <div
-            className="absolute inset-0 px-6 py-4 overflow-y-auto rounded-t-xl
-             bg-[url('/bg-canvas.jpg')]
-             bg-repeat bg-center bg-[length:420px]"
-            onContextMenu={(e) => e.preventDefault()}
-          >
-            {messages.map((msg) => {
-              const isMe = msg.sender === "me";
-              const senderName = isMe ? "You" : "User";
-
-              return (
-                <DropdownMenu
-                  key={msg.id}
-                  open={menuOpenFor === msg.id}
-                  onOpenChange={(o) => !o && setMenuOpenFor(null)}
-                >
-                  <DropdownMenuTrigger asChild>
-                    <div
-                      className={`mb-3 flex ${
-                        isMe ? "justify-end" : "justify-start"
-                      }`}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        if (!msg.deleted) setMenuOpenFor(msg.id);
-                      }}
-                    >
-                      {!isMe && (
-                        <img
-                          src={msg.senderAvatar || "/default-avatar.png"}
-                          alt="avatar"
-                          className="w-8 h-8 rounded-full object-cover mr-2 mt-1"
-                          onError={(e) => {
-                            e.target.src = "/default-avatar.png";
-                          }}
-                        />
-                      )}
-                      <div
-                        className={`relative px-3 py-2 rounded-xl text-sm max-w-[70%] shadow-sm
-${
-  msg.deleted
-    ? "bg-[#145C44] text-white"
-    : isMe
-    ? "bg-[#145C44] text-white"
-    : "bg-white text-black"
-}
-${msg.type !== "text" ? " p-1" : ""}
-`}
-                      >
-                        {renderMessage(msg)}
-                        <div
-                          className={`mt-1 flex items-center justify-end gap-1 text-[10px] opacity-70 ${
-                            msg.sender === "me" ? "text-white" : "text-black"
-                          }`}
-                        >
-                          <span>{formatTime(msg.timestamp)}</span>
-
-                          {msg.sender === "me" && (
-                            <span>{msg.seen ? "✓✓" : "✓"}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </DropdownMenuTrigger>
-
-                  {!msg.deleted && (
-                    <DropdownMenuContent align="end">
-                      {msg.type === "text" && (
-                        <DropdownMenuItem
-                          onClick={() =>
-                            navigator.clipboard.writeText(msg.text)
-                          }
-                        >
-                          Copy
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem
-                        className="text-red-600"
-                        onClick={() => deleteMessage(msg.id)}
-                      >
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  )}
-                </DropdownMenu>
-              );
-            })}
-            <div ref={bottomRef} />
-          </div>
+          messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`mb-3 flex ${isMe(msg) ? "justify-end" : "justify-start"}`}
+            >
+              {!isMe(msg) && (
+                <img
+                  src={msg.senderAvatar || "/default-avatar.png"}
+                  className="w-8 h-8 rounded-full mr-2"
+                />
+              )}
+              <div
+                className={`px-3 py-2 rounded-xl max-w-[70%] ${
+                  isMe(msg) ? "bg-[#145C44] text-white" : "bg-white text-black"
+                }`}
+              >
+                <div>{renderMessage(msg)}</div>
+                <div className={`text-xs mt-1 ${isMe(msg) ? "text-white/70 text-right" : "text-gray-500"}`}>
+                  {formatTime(msg.timestamp)}
+                </div>
+              </div>
+            </div>
+          ))
         )}
+        <div ref={bottomRef} />
       </div>
 
+      {/* INPUT */}
       {chat && (
-        <div className="h-16 bg-black flex items-center px-3">
-          <div className="flex items-center gap-2 w-full bg-[#202C33] rounded-full px-3 py-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="w-10 h-10 rounded-full text-white hover:bg-white/10 flex items-center justify-center text-xl">
-                  +
-                </button>
-              </DropdownMenuTrigger>
+        <div className="h-16 flex items-center px-3 bg-black">
+          <button
+            onClick={() => fileInputRef.current.click()}
+            className="text-white text-xl"
+          >
+            +
+          </button>
 
-              <DropdownMenuContent side="top" align="start">
-                {[
-                  ["document", "📄 Document"],
-                  ["image", "🖼 Image"],
-                  ["video", "🎥 Video"],
-                  ["audio", "🎧 Audio"],
-                ].map(([type, label]) => (
-                  <DropdownMenuItem
-                    key={type}
-                    onClick={() => {
-                      fileTypeRef.current = type;
-                      fileInputRef.current.click();
-                    }}
-                  >
-                    {label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && sendText()}
+            className="flex-1 bg-transparent text-white px-3 outline-none"
+            placeholder="Type a message"
+          />
 
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendText()}
-              placeholder="Type a message"
-              className="flex-1 bg-transparent text-white placeholder:text-white/60 outline-none px-2 text-sm"
-            />
+          <button onClick={sendText} className="text-white">
+            ➤
+          </button>
 
-            <button
-              onClick={sendText}
-              className="w-10 h-10 rounded-full bg-wa hover:bg-wa/90 text-white flex items-center justify-center"
-            >
-              ➤
-            </button>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              hidden
-              onChange={handleFileSelect}
-            />
-          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            hidden
+            onChange={handleFileSelect}
+          />
         </div>
       )}
     </div>

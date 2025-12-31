@@ -26,6 +26,7 @@ const messageSchema = new mongoose.Schema(
       name: String,
       mime: String,
       url: String,
+      expiresAt: Date,
     },
     deleted: {
       type: Boolean,
@@ -38,5 +39,7 @@ const messageSchema = new mongoose.Schema(
 );
 
 messageSchema.index({ chatId: 1, createdAt: 1 });
+
+messageSchema.index({ "file.expiresAt": 1 }, { expireAfterSeconds: 0 });
 
 export default mongoose.model("Message", messageSchema);
