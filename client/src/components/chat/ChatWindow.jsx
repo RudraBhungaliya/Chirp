@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { connectSocket } from "../../services/socket";
+import { useSocket } from "../../context/socketContext";
 import { useAuth } from "../../context/authContext";
 
 import {
@@ -33,7 +33,7 @@ export default function ChatWindow({ chat, user }) {
   const [input, setInput] = useState("");
   const [menuOpenFor, setMenuOpenFor] = useState(null);
 
-  const socketRef = useRef(null);
+  const { socket } = useSocket();
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
   const fileTypeRef = useRef("document");
@@ -72,34 +72,62 @@ export default function ChatWindow({ chat, user }) {
   /* ================= SOCKET ================= */
 
   useEffect(() => {
-    if (!chat || !token) return;
+    if (!chat || !socket) return;
 
-    if (!socketRef.current) {
-      socketRef.current = connectSocket(token);
-    }
-
-    const socket = socketRef.current;
     socket.emit("join_chat", chat._id);
 
-    socket.on("new_message", (m) => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: m._id,
-          senderId: m.sender._id,
-          senderName: m.sender.displayName,
-          senderAvatar: m.sender.avatar,
-          type: m.type,
-          text: m.content,
-          file: m.file,
-          deleted: m.deleted,
-          timestamp: new Date(m.createdAt).getTime(),
-        },
-      ]);
-    });
+    const handleNewMessage = (m) => {
+      const serverMsg = {
+        id: m._id,
+        clientId: m.clientId || null,
+        senderId: m.sender._id,
+        senderName: m.sender.displayName,
+        senderAvatar: m.sender.avatar,
+        type: m.type,
+        text: m.content,
+        file: m.file,
+        deleted: m.deleted,
+        timestamp: new Date(m.createdAt).getTime(),
+      };
 
-    return () => socket.off("new_message");
-  }, [chat, token]);
+      setMessages((prev) => {
+        // If message with same server id already exists, update it
+        if (prev.some((x) => x.id === serverMsg.id)) {
+          return prev.map((x) => (x.id === serverMsg.id ? serverMsg : x));
+        }
+
+        // If an optimistic message was created with the same clientId, replace it
+        if (serverMsg.clientId && prev.some((x) => x.clientId === serverMsg.clientId)) {
+          return prev.map((x) => (x.clientId === serverMsg.clientId ? serverMsg : x));
+        }
+
+        // Fallback: match by exact timestamp
+        if (prev.some((x) => x.timestamp === serverMsg.timestamp && x.senderId === serverMsg.senderId)) {
+          return prev.map((x) => (x.timestamp === serverMsg.timestamp && x.senderId === serverMsg.senderId ? serverMsg : x));
+        }
+
+        // Fallback: match by content+sender within small time window (5s)
+        const similarIdx = prev.findIndex(
+          (x) =>
+            x.senderId === serverMsg.senderId &&
+            x.text === serverMsg.text &&
+            Math.abs((x.timestamp || 0) - serverMsg.timestamp) < 5000
+        );
+        if (similarIdx !== -1) {
+          return prev.map((x, i) => (i === similarIdx ? serverMsg : x));
+        }
+
+        // Otherwise append
+        return [...prev, serverMsg];
+      });
+    };
+
+    socket.on("new_message", handleNewMessage);
+
+    return () => {
+      socket.off("new_message", handleNewMessage);
+    };
+  }, [chat, socket]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "auto" });
@@ -112,6 +140,7 @@ export default function ChatWindow({ chat, user }) {
 
     const msg = {
       id: crypto.randomUUID(),
+      clientId: null,
       senderId: user._id,
       senderName: user.displayName,
       senderAvatar: user.avatar,
@@ -141,6 +170,7 @@ export default function ChatWindow({ chat, user }) {
 
     const msg = {
       id: crypto.randomUUID(),
+      clientId: null,
       senderId: user._id,
       senderName: user.displayName,
       senderAvatar: user.avatar,
@@ -163,7 +193,10 @@ export default function ChatWindow({ chat, user }) {
     if (!chat) return;
 
     // show locally
-    setMessages((prev) => [...prev, msg]);
+    // mark this optimistic message with a clientId to match server response
+    const clientId = msg.id;
+    const optimistic = { ...msg, clientId };
+    setMessages((prev) => [...prev, optimistic]);
 
     try {
       if (rawFile) {
@@ -171,6 +204,7 @@ export default function ChatWindow({ chat, user }) {
         const form = new FormData();
         form.append("file", rawFile);
         form.append("type", msg.type || "document");
+        form.append("clientId", clientId);
 
         const res = await fetch(`${API}/api/message/${chat._id}/file`, {
           method: "POST",
@@ -182,15 +216,31 @@ export default function ChatWindow({ chat, user }) {
 
         if (res.ok) {
           const saved = await res.json();
-          // replace temp message with server-saved message (id + file url)
+          // replace optimistic message by matching clientId
           setMessages((prev) =>
-            prev.map((m) => (m.timestamp === msg.timestamp ? saved : m))
+            prev.map((m) =>
+              m.clientId === clientId
+                ? {
+                    id: saved._id,
+                    clientId: saved.clientId || clientId,
+                    senderId: saved.sender._id,
+                    senderName: saved.sender.displayName,
+                    senderAvatar: saved.sender.avatar,
+                    type: saved.type,
+                    text: saved.content,
+                    file: saved.file,
+                    deleted: saved.deleted,
+                    timestamp: new Date(saved.createdAt).getTime(),
+                  }
+                : m
+            )
           );
         }
       } else {
         const body = {
           content: msg.text || "",
           type: msg.type || "text",
+          clientId: clientId,
         };
 
         const res = await fetch(`${API}/api/message/${chat._id}`, {
@@ -205,7 +255,22 @@ export default function ChatWindow({ chat, user }) {
         if (res.ok) {
           const saved = await res.json();
           setMessages((prev) =>
-            prev.map((m) => (m.timestamp === msg.timestamp ? { ...m, id: saved._id } : m))
+            prev.map((m) =>
+              m.clientId === clientId
+                ? {
+                    id: saved._id,
+                    clientId: saved.clientId || clientId,
+                    senderId: saved.sender._id,
+                    senderName: saved.sender.displayName,
+                    senderAvatar: saved.sender.avatar,
+                    type: saved.type,
+                    text: saved.content,
+                    file: saved.file,
+                    deleted: saved.deleted,
+                    timestamp: new Date(saved.createdAt).getTime(),
+                  }
+                : m
+            )
           );
         }
       }

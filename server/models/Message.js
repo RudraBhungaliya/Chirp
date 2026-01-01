@@ -28,6 +28,11 @@ const messageSchema = new mongoose.Schema(
       url: String,
       expiresAt: Date,
     },
+    // optional client-generated id to match optimistic UI messages
+    clientId: {
+      type: String,
+      index: true,
+    },
     deleted: {
       type: Boolean,
       default: false,

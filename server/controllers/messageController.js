@@ -1,6 +1,7 @@
 import Message from "../models/Message.js";
 import Chat from "../models/Chat.js";
 import { io } from "../server.js";
+import { emitNewMessage } from "../utils/emitter.js";
 import mongoose from "mongoose";
 
 // get messages
@@ -38,7 +39,7 @@ export const getMessages = async (req, res) => {
 export const sendMessage = async (req, res) => {
   try {
     const { chatId } = req.params;
-    const { content = "" } = req.body;
+    const { content = "", clientId = null } = req.body;
 
     if (!content.trim()) {
       return res.status(400).json({ msg: "No Message" });
@@ -65,6 +66,7 @@ export const sendMessage = async (req, res) => {
       sender: req.userId,
       type: "text",
       content,
+      clientId,
     });
 
     // Populate sender info
@@ -75,7 +77,7 @@ export const sendMessage = async (req, res) => {
       lastMessage: message._id,
     }).populate("lastMessage");
 
-    io.to(chatId).emit("new_message", message)
+    emitNewMessage(io, chatId, message);
     res.status(201).json(message);
   } catch (err) {
     res.status(500).json({ msg: err.message });
@@ -88,6 +90,7 @@ export const sendFileMessage = async (req, res) => {
     const { chatId } = req.params;
     const { type } = req.body;
     const file = req.file;
+    const clientId = req.body?.clientId || null;
 
     if (!file) {
       return res.status(400).json({ msg: "No File Uploaded" });
@@ -146,6 +149,7 @@ export const sendFileMessage = async (req, res) => {
         expiresAt:
           type === "video" ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null,
       },
+      clientId,
     });
 
     await message.populate("sender", "displayName avatar _id");
@@ -154,7 +158,7 @@ export const sendFileMessage = async (req, res) => {
       lastMessage: message._id,
     });
 
-    io.to(chatId).emit("new_message", message);
+    emitNewMessage(io, chatId, message);
     res.status(201).json(message);
   } catch (err) {
     res.status(500).json({ msg: err.message });

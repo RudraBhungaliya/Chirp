@@ -16,6 +16,7 @@ import userRoute from "./routes/userRoute.js";
 import Chat from "./models/Chat.js";
 import Message from "./models/Message.js";
 import User from "./models/User.js";
+import { emitNewMessage } from "./utils/emitter.js";
 import { searchUsers } from "./controllers/userController.js";
 
 
@@ -65,12 +66,11 @@ io.use((socket, next) => {
 // socket connection
 io.on("connection", async (socket) => {
   try {
-    // mark user online
+    // mark user online (do not update lastSeen when coming online)
     const user = await User.findByIdAndUpdate(
       socket.userId,
       {
         isActive: true,
-        lastSeen: new Date(),
       },
       { new: true }
     );
@@ -103,7 +103,7 @@ io.on("connection", async (socket) => {
         lastMessage: message._id,
       });
 
-      io.to(chatId).emit("new_message", message);
+      emitNewMessage(io, chatId, message);
     });
 
     socket.on("disconnect", async () => {
