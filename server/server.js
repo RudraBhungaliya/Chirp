@@ -4,7 +4,6 @@ import cors from "cors";
 import http from "http";
 import jwt from "jsonwebtoken";
 import { Server } from "socket.io";
-import path from "path";
 
 import connectDB from "./config/db.js";
 
@@ -17,8 +16,7 @@ import Chat from "./models/Chat.js";
 import Message from "./models/Message.js";
 import User from "./models/User.js";
 import { emitNewMessage } from "./utils/emitter.js";
-import { searchUsers } from "./controllers/userController.js";
-
+import auth from "./middleware/auth.js";
 
 // ENV
 dotenv.config();
@@ -38,9 +36,9 @@ app.use("/uploads", express.static("uploads"));
 
 // Routes
 app.use("/api/auth", authRoute);
-app.use("/api/chats", chatRoute);
-app.use("/api/message", messageRoute);
-app.use("/api/users", userRoute);
+app.use("/api/chats", auth,chatRoute);
+app.use("/api/message", auth,messageRoute);
+app.use("/api/users", auth, userRoute);
 
 // socket.io
 const io = new Server(server, {

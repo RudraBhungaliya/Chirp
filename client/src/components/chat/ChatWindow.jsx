@@ -2,21 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useSocket } from "../../context/socketContext";
 import { useAuth } from "../../context/authContext";
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-
 const MAX_FILE_SIZE = 350 * 1024 * 1024;
-
-const FILE_RULES = {
-  image: ["image/"],
-  video: ["video/"],
-  audio: ["audio/"],
-  document: [],
-};
 
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
@@ -41,7 +27,6 @@ export default function ChatWindow({ chat, user }) {
   const API = import.meta.env.VITE_API_URL;
 
   /* ================= FETCH ================= */
-
   useEffect(() => {
     if (!chat) {
       setMessages([]);
@@ -70,10 +55,8 @@ export default function ChatWindow({ chat, user }) {
   }, [chat, token]);
 
   /* ================= SOCKET ================= */
-
   useEffect(() => {
     if (!chat || !socket) return;
-
     socket.emit("join_chat", chat._id);
 
     const handleNewMessage = (m) => {
@@ -97,13 +80,29 @@ export default function ChatWindow({ chat, user }) {
         }
 
         // If an optimistic message was created with the same clientId, replace it
-        if (serverMsg.clientId && prev.some((x) => x.clientId === serverMsg.clientId)) {
-          return prev.map((x) => (x.clientId === serverMsg.clientId ? serverMsg : x));
+        if (
+          serverMsg.clientId &&
+          prev.some((x) => x.clientId === serverMsg.clientId)
+        ) {
+          return prev.map((x) =>
+            x.clientId === serverMsg.clientId ? serverMsg : x
+          );
         }
 
         // Fallback: match by exact timestamp
-        if (prev.some((x) => x.timestamp === serverMsg.timestamp && x.senderId === serverMsg.senderId)) {
-          return prev.map((x) => (x.timestamp === serverMsg.timestamp && x.senderId === serverMsg.senderId ? serverMsg : x));
+        if (
+          prev.some(
+            (x) =>
+              x.timestamp === serverMsg.timestamp &&
+              x.senderId === serverMsg.senderId
+          )
+        ) {
+          return prev.map((x) =>
+            x.timestamp === serverMsg.timestamp &&
+            x.senderId === serverMsg.senderId
+              ? serverMsg
+              : x
+          );
         }
 
         // Fallback: match by content+sender within small time window (5s)
@@ -134,7 +133,6 @@ export default function ChatWindow({ chat, user }) {
   }, [messages]);
 
   /* ================= SEND ================= */
-
   const sendText = async () => {
     if (!input.trim()) return;
 
@@ -188,7 +186,6 @@ export default function ChatWindow({ chat, user }) {
   };
 
   /* ================= HELPERS ================= */
-
   const pushMessage = async (msg, rawFile) => {
     if (!chat) return;
 
@@ -298,7 +295,6 @@ export default function ChatWindow({ chat, user }) {
   const headerUser = getHeaderUser();
 
   /* ================= RENDER MESSAGE ================= */
-
   const renderMessage = (msg) => {
     if (msg.deleted) return <i>Message deleted</i>;
 
@@ -342,7 +338,6 @@ export default function ChatWindow({ chat, user }) {
   };
 
   /* ================= UI ================= */
-
   return (
     <div className="flex-1 flex flex-col bg-[#0B141A]">
       {/* HEADER */}
@@ -372,13 +367,17 @@ export default function ChatWindow({ chat, user }) {
           <div className="h-full flex flex-col items-center justify-center text-center text-white/90">
             <div className="text-4xl mb-4">🐥</div>
             <h2 className="text-2xl font-semibold">Chirp for Desktop</h2>
-            <p className="text-gray-400 mt-2">Messages are end-to-end encrypted.</p>
+            <p className="text-gray-400 mt-2">
+              Messages are end-to-end encrypted.
+            </p>
           </div>
         ) : (
           messages.map((msg) => (
             <div
               key={msg.id}
-              className={`mb-3 flex ${isMe(msg) ? "justify-end" : "justify-start"}`}
+              className={`mb-3 flex ${
+                isMe(msg) ? "justify-end" : "justify-start"
+              }`}
             >
               {!isMe(msg) && (
                 <img
@@ -392,7 +391,11 @@ export default function ChatWindow({ chat, user }) {
                 }`}
               >
                 <div>{renderMessage(msg)}</div>
-                <div className={`text-xs mt-1 ${isMe(msg) ? "text-white/70 text-right" : "text-gray-500"}`}>
+                <div
+                  className={`text-xs mt-1 ${
+                    isMe(msg) ? "text-white/70 text-right" : "text-gray-500"
+                  }`}
+                >
                   {formatTime(msg.timestamp)}
                 </div>
               </div>
