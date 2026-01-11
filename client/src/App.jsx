@@ -128,7 +128,7 @@ export default function App() {
         u._id === user._id ? { ...u, isActive: false, lastSeen: new Date() } : u
       )
     );
-    
+
     logout();
     disconnect();
     setSelectedChat(null);
