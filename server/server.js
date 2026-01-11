@@ -43,20 +43,28 @@ app.use("/api/users", auth, userRoute);
 // socket.io
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: process.env.ALLOWED_ORIGINS?.split(",") || "*",
+    credentials: true,
   },
 });
+
+console.log("Socket.IO CORS origin:", process.env.ALLOWED_ORIGINS || "*");
 
 // socket auth (jwt)
 io.use((socket, next) => {
   try {
     const token = socket.handshake.auth?.token;
-    if (!token) return next(new Error("Unauthorized"));
+    if (!token) {
+      console.warn("Socket auth: No token provided");
+      return next(new Error("Unauthorized"));
+    }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     socket.userId = decoded.userId;
+    console.log("Socket auth successful for userId:", socket.userId);
     next();
   } catch (err) {
+    console.error("Socket auth failed:", err.message);
     next(new Error("Unauthorized"));
   }
 });

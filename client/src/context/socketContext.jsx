@@ -25,12 +25,16 @@ export const SocketProvider = ({ children }) => {
 
       socketRef.current.on("connect", () => {
         setIsConnected(true);
-        console.log("Socket connected");
+        console.log("Socket connected", { uri: socketRef.current?.io?.uri });
       });
 
       socketRef.current.on("disconnect", () => {
         setIsConnected(false);
         console.log("Socket disconnected");
+      });
+
+      socketRef.current.on("connect_error", (err) => {
+        console.error("Socket connect_error:", err);
       });
     }
 

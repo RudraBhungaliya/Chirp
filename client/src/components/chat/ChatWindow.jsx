@@ -17,7 +17,6 @@ export default function ChatWindow({ chat, user }) {
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [menuOpenFor, setMenuOpenFor] = useState(null);
 
   const { socket } = useSocket();
   const bottomRef = useRef(null);
@@ -33,26 +32,36 @@ export default function ChatWindow({ chat, user }) {
       return;
     }
 
-    fetch(`${API}/api/message/${chat._id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((msgs) =>
-        setMessages(
-          msgs.map((m) => ({
-            id: m._id,
-            senderId: m.sender._id,
-            senderName: m.sender.displayName,
-            senderAvatar: m.sender.avatar,
-            type: m.type,
-            text: m.content,
-            file: m.file,
-            deleted: m.deleted,
-            timestamp: new Date(m.createdAt).getTime(),
-          }))
-        )
+    let cancelled = false;
+
+    (async () => {
+      const res = await fetch(`${API}/api/message/${chat._id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const msg = await res.json();
+
+      if (cancelled) return;
+
+      setMessages(
+        msg.map((m) => ({
+          id: m._id,
+          senderId: m.sender._id,
+          senderName: m.sender.displayName,
+          senderAvatar: m.sender.avatar,
+          type: m.type,
+          text: m.content,
+          file: m.file,
+          deleted: m.deleted,
+          timestamp: new Date(m.createdAt).getTime(),
+        }))
       );
-  }, [chat, token]);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chat?._id, token]);
 
   /* ================= SOCKET ================= */
   useEffect(() => {
@@ -60,9 +69,11 @@ export default function ChatWindow({ chat, user }) {
     socket.emit("join_chat", chat._id);
 
     const handleNewMessage = (m) => {
+      if (m.chatId !== chat._id) return;
+
       const serverMsg = {
         id: m._id,
-        clientId: m.clientId || null,
+        clientId : m.clientId || null,
         senderId: m.sender._id,
         senderName: m.sender.displayName,
         senderAvatar: m.sender.avatar,
@@ -89,33 +100,6 @@ export default function ChatWindow({ chat, user }) {
           );
         }
 
-        // Fallback: match by exact timestamp
-        if (
-          prev.some(
-            (x) =>
-              x.timestamp === serverMsg.timestamp &&
-              x.senderId === serverMsg.senderId
-          )
-        ) {
-          return prev.map((x) =>
-            x.timestamp === serverMsg.timestamp &&
-            x.senderId === serverMsg.senderId
-              ? serverMsg
-              : x
-          );
-        }
-
-        // Fallback: match by content+sender within small time window (5s)
-        const similarIdx = prev.findIndex(
-          (x) =>
-            x.senderId === serverMsg.senderId &&
-            x.text === serverMsg.text &&
-            Math.abs((x.timestamp || 0) - serverMsg.timestamp) < 5000
-        );
-        if (similarIdx !== -1) {
-          return prev.map((x, i) => (i === similarIdx ? serverMsg : x));
-        }
-
         // Otherwise append
         return [...prev, serverMsg];
       });
@@ -124,9 +108,10 @@ export default function ChatWindow({ chat, user }) {
     socket.on("new_message", handleNewMessage);
 
     return () => {
+      socket.emit("leave_chat", chat._id);
       socket.off("new_message", handleNewMessage);
     };
-  }, [chat, socket]);
+  }, [chat?._id, socket]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "auto" });

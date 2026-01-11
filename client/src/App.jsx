@@ -9,6 +9,7 @@ import ChatList from "./components/chat/ChatList";
 import ChatWindow from "./components/chat/ChatWindow";
 
 export default function App() {
+  console.log("VITE_API_URL:", import.meta.env.VITE_API_URL);
   const { user, token, loading, needsProfile, login, logout } = useAuth();
   const { socket, disconnect } = useSocket();
 
@@ -76,6 +77,43 @@ export default function App() {
 
     fetchChats();
   }, [user, token, needsProfile]);
+
+  useEffect(() => {
+    if (!socket || !user) return;
+
+    const handleNewMessage = (m) => {
+      setChats((prevChats) => {
+        const idx = prevChats.findIndex((c) => c._id === m.chatId);
+
+        if (idx !== -1) {
+          const updatedChat = {
+            ...prevChats[idx],
+            lastMessage: m,
+            updatedAt: m.createdAt,
+          };
+
+          const rest = prevChats.filter((_, i) => i !== idx);
+          return [updatedChat, ...rest];
+        }
+
+        return [
+          {
+            _id: m.chatId,
+            participants: m.participants,
+            lastMessage: m,
+            updatedAt: m.createdAt,
+          },
+          ...prevChats,
+        ];
+      });
+    };
+
+    socket.on("new_message", handleNewMessage);
+
+    return () => {
+      socket.off("new_message", handleNewMessage);
+    };
+  }, [socket, user]);
 
   const handleProfileUpdate = (updatedUser) => {
     login({
@@ -150,6 +188,7 @@ export default function App() {
     >
       <ChatList
         users={users}
+        chats = {chats}
         onSelectChat={setSelectedChat}
         onSelectUser={handleSelectUser}
         currentUser={user}

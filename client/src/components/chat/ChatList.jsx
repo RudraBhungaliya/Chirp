@@ -38,26 +38,24 @@ export default function ChatList({
   const [search, setSearch] = useState("");
   const [width, setWidth] = useState(360);
   const resizing = useRef(false);
-  const currentUserId = currentUser;
 
   const sidebarItems = users
     .map((u) => {
-      const isSelf = u._id === currentUser;
+      const isSelf = u._id === currentUser._id;
 
-      const chat = isSelf
-        ? chats.find(
-            (c) =>
-              (c.participants.length === 1 &&
-                c.participants[0]._id === currentUser) ||
-              (c.participants.length === 2 &&
-                c.participants.every((p) => p._id === currentUser))
-          )
-        : chats.find(
-            (c) =>
-              c.participants.length === 2 &&
-              c.participants.some((p) => p._id === currentUser._id) &&
-              c.participants.some((p) => p._id === u._id)
-          );
+      const chat = chats.find((c) => {
+        const ids = c.participants.map((p) => p._id);
+
+        if (isSelf) {
+          return ids.length === 1 && ids[0] === currentUser._id;
+        }
+
+        return (
+          ids.length === 2 &&
+          ids.includes(currentUser._id) &&
+          ids.includes(u._id)
+        );
+      });
 
       return {
         user: u,
