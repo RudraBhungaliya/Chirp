@@ -28,24 +28,37 @@ connectDB();
 const app = express();
 const server = http.createServer(app);
 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",")
+  : [];
+
 // middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+);
+
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use("/uploads", express.static("uploads"));
 
 // Routes
 app.use("/api/auth", authRoute);
-app.use("/api/chats", auth,chatRoute);
-app.use("/api/message", auth,messageRoute);
+app.use("/api/chats", auth, chatRoute);
+app.use("/api/message", auth, messageRoute);
 app.use("/api/users", auth, userRoute);
+
 
 // socket.io
 const io = new Server(server, {
   cors: {
-    origin: process.env.ALLOWED_ORIGINS?.split(",") || "*",
+    origin: allowedOrigins,
     credentials: true,
   },
+  transports: ["websocket", "polling"],
 });
 
 console.log("Socket.IO CORS origin:", process.env.ALLOWED_ORIGINS || "*");
@@ -83,14 +96,18 @@ io.on("connection", async (socket) => {
 
     console.log("User connected:", socket.userId);
 
+    socket.on("join_chat", (chatId) => {
+      socket.join(chatId);
+    });
+
+    socket.on("leave_chat", (chatId) => {
+      socket.leave(chatId);
+    });
+
     io.emit("presence_update", {
       userId: socket.userId,
       isActive: true,
       lastSeen: user.lastSeen,
-    });
-
-    socket.on("join_chat", (chatId) => {
-      socket.join(chatId);
     });
 
     socket.on("send_message", async ({ chatId, content, type = "text" }) => {

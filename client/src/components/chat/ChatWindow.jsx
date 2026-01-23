@@ -3,6 +3,12 @@ import { useSocket } from "../../context/socketContext";
 import { useAuth } from "../../context/authContext";
 
 const MAX_FILE_SIZE = 350 * 1024 * 1024;
+const DEFAULT_AVATAR = "/default-avatar.jpeg";
+
+const getAvatar = (avatar) => {
+  if(!avatar || typeof avatar !== "string" || avatar.trim() === "") return DEFAULT_AVATAR;
+  return avatar;
+}
 
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
@@ -126,7 +132,7 @@ export default function ChatWindow({ chat, user }) {
       clientId: null,
       senderId: user._id,
       senderName: user.displayName,
-      senderAvatar: user.avatar,
+      senderAvatar: getAvatar(user.avatar),
       type: "text",
       text: input,
       file: null,
@@ -156,7 +162,7 @@ export default function ChatWindow({ chat, user }) {
       clientId: null,
       senderId: user._id,
       senderName: user.displayName,
-      senderAvatar: user.avatar,
+      senderAvatar: getAvatar(user.avatar),
       type: fileTypeRef.current,
       text: "",
       file: { name: file.name, data: base64, mime: file.type },
@@ -207,7 +213,7 @@ export default function ChatWindow({ chat, user }) {
                     clientId: saved.clientId || clientId,
                     senderId: saved.sender._id,
                     senderName: saved.sender.displayName,
-                    senderAvatar: saved.sender.avatar,
+                    senderAvatar: getAvatar(saved.sender.avatar),
                     type: saved.type,
                     text: saved.content,
                     file: saved.file,
@@ -331,7 +337,7 @@ export default function ChatWindow({ chat, user }) {
           headerUser && (
             <>
               <img
-                src={headerUser.avatar || "/default-avatar.jpeg"}
+                src={getAvatar(headerUser.avatar)}
                 className="w-9 h-9 rounded-full object-cover"
               />
               <span>
@@ -366,7 +372,7 @@ export default function ChatWindow({ chat, user }) {
             >
               {!isMe(msg) && (
                 <img
-                  src={msg.senderAvatar || "/default-avatar.png"}
+                  src={getAvatar(msg.senderAvatar)}
                   className="w-8 h-8 rounded-full mr-2"
                 />
               )}
