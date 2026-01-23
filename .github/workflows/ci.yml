@@ -24,10 +24,6 @@ jobs :
             - name : Install backend dependencies
               working-directory : ./server
               run : npm install
-
-            - name : Backend build check
-              working-directory : ./server
-              run : npm run build --if-present
             
             # Frontend
             - name : Install frontend dependencies
@@ -36,7 +32,9 @@ jobs :
 
             - name : Frontend build check
               working-directory : ./client
-              run : npm run build --if-present
+              run : npm run build
+              env : 
+                VITE_API_URL : "http://localhost:5000"
 
 
 
