@@ -34,7 +34,9 @@ jobs :
               working-directory : ./client
               run : npm run build
               env : 
-                VITE_API_URL : "http://localhost:5000"
+                VITE_API_URL: http://localhost:5000
+                VITE_SOCKET_URL: http://localhost:5000
+                VITE_GOOGLE_CLIENT_ID: dummy
 
 
 
