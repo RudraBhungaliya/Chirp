@@ -73,7 +73,8 @@ export default function ProfileSetup({
         : "/api/users/complete-profile";
       const method = isModal ? "PUT" : "POST";
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
+      const API_URL = import.meta.env.VITE_API_URL || "";
+      const res = await fetch(`${API_URL}${endpoint}`, {
         method,
         headers: {
           "Content-Type": "application/json",

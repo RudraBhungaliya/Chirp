@@ -9,7 +9,7 @@ import ChatList from "./components/chat/ChatList";
 import ChatWindow from "./components/chat/ChatWindow";
 
 export default function App() {
-  console.log("VITE_API_URL:", import.meta.env.VITE_API_URL);
+  const API_URL = import.meta.env.VITE_API_URL || "";
   const { user, token, loading, needsProfile, login, logout } = useAuth();
   const { socket, disconnect } = useSocket();
 
@@ -22,17 +22,21 @@ export default function App() {
     useState(needsProfile);
 
   useEffect(() => {
+    setShowInitialProfileSetup(needsProfile);
+  }, [needsProfile]);
+
+  useEffect(() => {
     if (!token || !socket) return;
 
     const fetchUsers = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/users`, {
+        const res = await fetch(`${API_URL}/api/users`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
         const data = await res.json();
-        setUsers(data);
+        setUsers(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error("Error fetching users:", err);
       }
@@ -63,13 +67,13 @@ export default function App() {
 
     const fetchChats = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/chats`, {
+        const res = await fetch(`${API_URL}/api/chats`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
         const data = await res.json();
-        setChats(data);
+        setChats(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error("Error fetching chats:", err);
       }
@@ -125,9 +129,14 @@ export default function App() {
   };
 
   const handleSelectUser = async (selectedUser) => {
+    if (!token || !user) {
+      setShowAuth(true);
+      return;
+    }
+
     try {
       // Create or get chat with the selected user
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/chats`, {
+      const res = await fetch(`${API_URL}/api/chats`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

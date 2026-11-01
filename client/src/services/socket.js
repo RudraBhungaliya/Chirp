@@ -1,20 +1,18 @@
 import { io } from "socket.io-client";
 
-const VITE_SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "";
-
-if (!VITE_SOCKET_URL) {
-  console.warn("VITE_SOCKET_URL is not set. Socket will try to connect to current origin.");
-}
+const VITE_SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5001";
 
 export const connectSocket = (token) => {
-  const url = VITE_SOCKET_URL || undefined; // undefined => uses current origin
-  const socket = io(url, {
+  const socket = io(VITE_SOCKET_URL, {
     auth: { token },
-    transports: ["websocket"],
+    transports: ["websocket", "polling"],
   });
 
   socket.on("connect_error", (err) => {
-    console.error("Socket connect_error:", err);
+    console.error("Socket connect_error:", err.message);
   });
 
   return socket;

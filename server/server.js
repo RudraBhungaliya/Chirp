@@ -1,11 +1,12 @@
+import "dotenv/config";
 import express from "express";
-import dotenv from "dotenv";
 import cors from "cors";
 import http from "http";
 import jwt from "jsonwebtoken";
 import { Server } from "socket.io";
 
 import connectDB from "./config/db.js";
+import mongoose from "mongoose";
 
 import authRoute from "./routes/authRoute.js";
 import chatRoute from "./routes/chatRoute.js";
@@ -16,10 +17,6 @@ import Chat from "./models/Chat.js";
 import Message from "./models/Message.js";
 import User from "./models/User.js";
 import { emitNewMessage } from "./utils/emitter.js";
-import auth from "./middleware/auth.js";
-
-// ENV
-dotenv.config();
 
 // DB
 connectDB();
@@ -29,39 +26,83 @@ const app = express();
 const server = http.createServer(app);
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",")
-  : [];
+  ? process.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim())
+  : [
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      "http://localhost:3000",
+      "http://localhost:5001",
+    ];
 
 // middleware
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (
+        allowedOrigins.includes("*") ||
+        allowedOrigins.includes(origin) ||
+        process.env.NODE_ENV !== "production"
+      ) {
+        return callback(null, true);
+      }
+      return callback(new Error("CORS not allowed"));
+    },
     credentials: true,
   })
 );
-
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use("/uploads", express.static("uploads"));
 
+// Health check
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    dbConnected: mongoose.connection.readyState === 1,
+    port: PORT,
+  });
+});
+
+// Middleware to prevent hanging if DB is not connected
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api") && mongoose.connection.readyState !== 1) {
+    return res.status(503).json({
+      msg: "Database connection not ready. Please ensure MongoDB is running and MONGO_URI in server/.env is valid.",
+    });
+  }
+  next();
+});
+
 // Routes
 app.use("/api/auth", authRoute);
-app.use("/api/chats", auth, chatRoute);
-app.use("/api/message", auth, messageRoute);
-app.use("/api/users", auth, userRoute);
-
+app.use("/api/chats", chatRoute);
+app.use("/api/message", messageRoute);
+app.use("/api/users", userRoute);
 
 // socket.io
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (
+        allowedOrigins.includes("*") ||
+        allowedOrigins.includes(origin) ||
+        process.env.NODE_ENV !== "production"
+      ) {
+        return callback(null, true);
+      }
+      return callback(new Error("CORS not allowed"));
+    },
     credentials: true,
   },
   transports: ["websocket", "polling"],
 });
 
 console.log("Socket.IO CORS origin:", process.env.ALLOWED_ORIGINS || "*");
+
+const JWT_SECRET = process.env.JWT_SECRET || "chirp_jwt_secret_dev_key";
 
 // socket auth (jwt)
 io.use((socket, next) => {
@@ -72,7 +113,7 @@ io.use((socket, next) => {
       return next(new Error("Unauthorized"));
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     socket.userId = decoded.userId;
     console.log("Socket auth successful for userId:", socket.userId);
     next();
@@ -107,7 +148,7 @@ io.on("connection", async (socket) => {
     io.emit("presence_update", {
       userId: socket.userId,
       isActive: true,
-      lastSeen: user.lastSeen,
+      lastSeen: user?.lastSeen || new Date(),
     });
 
     socket.on("send_message", async ({ chatId, content, type = "text" }) => {
@@ -142,7 +183,7 @@ io.on("connection", async (socket) => {
       io.emit("presence_update", {
         userId: socket.userId,
         isActive: false,
-        lastSeen: u.lastSeen,
+        lastSeen: u?.lastSeen || new Date(),
       });
 
       console.log("User disconnected:", socket.userId);
@@ -155,7 +196,7 @@ io.on("connection", async (socket) => {
 export { io };
 
 // server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 server.listen(PORT, () => {
   console.log(`Server running on port : ${PORT}`);
 });

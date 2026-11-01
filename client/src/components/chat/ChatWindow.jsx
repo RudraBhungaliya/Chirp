@@ -29,7 +29,7 @@ export default function ChatWindow({ chat, user }) {
   const fileInputRef = useRef(null);
   const fileTypeRef = useRef("document");
 
-  const API = import.meta.env.VITE_API_URL;
+  const API = import.meta.env.VITE_API_URL || "";
 
   /* ================= FETCH ================= */
   useEffect(() => {
@@ -278,9 +278,10 @@ export default function ChatWindow({ chat, user }) {
       : "";
 
   const getHeaderUser = () => {
-    if (!chat) return null;
-    if (chat.participants.every((p) => p._id === user._id)) return user;
-    return chat.participants.find((p) => p._id !== user._id);
+    if (!chat || !chat.participants || !user) return null;
+    const myId = user._id;
+    if (chat.participants.every((p) => (p?._id || p) === myId)) return user;
+    return chat.participants.find((p) => (p?._id || p) !== myId);
   };
 
   const headerUser = getHeaderUser();

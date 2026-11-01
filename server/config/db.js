@@ -1,13 +1,23 @@
 import mongoose from "mongoose";
 
 const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGO_URI);
+  const mongoUri =
+    process.env.MONGO_URI || "mongodb://127.0.0.1:27017/chirp";
 
-    console.log(`MongoDB Connected ✅`);
+  try {
+    const conn = await mongoose.connect(mongoUri, {
+      serverSelectionTimeoutMS: 5000,
+    });
+    console.log(`MongoDB Connected ✅ (${conn.connection.host})`);
   } catch (err) {
-    console.error("Database connection error: ", err);
-    process.exit(1);
+    console.warn(`\n⚠️  [MongoDB Warning] Could not connect to MongoDB at: ${mongoUri}`);
+    console.warn(`   Reason: ${err.message}`);
+    console.warn(
+      `   👉 Set your MONGO_URI in server/.env (e.g. from MongoDB Atlas or local MongoDB).\n`
+    );
+    if (process.env.NODE_ENV === "production") {
+      process.exit(1);
+    }
   }
 };
 

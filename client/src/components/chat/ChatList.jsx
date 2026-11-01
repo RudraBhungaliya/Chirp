@@ -39,20 +39,26 @@ export default function ChatList({
   const [width, setWidth] = useState(360);
   const resizing = useRef(false);
 
-  const sidebarItems = users
-    .map((u) => {
-      const isSelf = u._id === currentUser._id;
+  const currentUserId = currentUser?._id;
 
-      const chat = chats.find((c) => {
-        const ids = c.participants.map((p) => p._id);
+  const sidebarItems = (users || [])
+    .map((u) => {
+      const isSelf = currentUserId ? u._id === currentUserId : false;
+
+      const chat = (chats || []).find((c) => {
+        if (!c || !c.participants) return false;
+        const ids = c.participants.map((p) =>
+          typeof p === "string" ? p : p?._id
+        );
 
         if (isSelf) {
-          return ids.length === 1 && ids[0] === currentUser._id;
+          return ids.length === 1 && ids[0] === currentUserId;
         }
 
         return (
+          Boolean(currentUserId) &&
           ids.length === 2 &&
-          ids.includes(currentUser._id) &&
+          ids.includes(currentUserId) &&
           ids.includes(u._id)
         );
       });
@@ -67,7 +73,7 @@ export default function ChatList({
       };
     })
     .filter(({ user }) =>
-      (user.displayName || "").toLowerCase().includes(search.toLowerCase())
+      (user?.displayName || "").toLowerCase().includes(search.toLowerCase())
     )
     .sort((a, b) => {
       const tA = new Date(a.updatedAt).getTime();
@@ -98,7 +104,7 @@ export default function ChatList({
     <>
       <aside
         style={{ width }}
-        className="h-full border-r bg-[#0B141A] flex flex-col text-white"
+        className="h-full border-r border-[#202C33] bg-[#0B141A] flex flex-col text-white"
       >
         {/* SEARCH */}
         <div className="px-3 py-2">
@@ -123,7 +129,11 @@ export default function ChatList({
               <div
                 key={user._id}
                 onClick={() => {
-                  if (user._id === currentUser._id) {
+                  if (!currentUser) {
+                    onRequireAuth?.();
+                    return;
+                  }
+                  if (user._id === currentUserId) {
                     onSelectUser({ ...user, isSelf: true });
                   } else {
                     onSelectUser(user);
@@ -137,7 +147,7 @@ export default function ChatList({
                     src={
                       user.avatar?.trim() ? user.avatar : "/default-avatar.jpeg"
                     }
-                    alt={user.displayName}
+                    alt={user.displayName || "User"}
                     className="w-10 h-10 rounded-full object-cover"
                     onError={(e) => {
                       e.currentTarget.src = "/default-avatar.jpeg";
@@ -151,7 +161,7 @@ export default function ChatList({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium truncate">
-                      {user.displayName}
+                      {user.displayName || "Unknown User"}
                     </span>
                     {!user.isActive && user.lastSeen && (
                       <span className="text-xs text-[#8696A0] whitespace-nowrap">
@@ -162,7 +172,7 @@ export default function ChatList({
 
                   {lastMessage ? (
                     <div className="text-xs text-[#8696A0] truncate">
-                      {lastMessage.content}
+                      {lastMessage.content || (lastMessage.file ? `[${lastMessage.type || 'Attachment'}]` : '')}
                     </div>
                   ) : (
                     <div className="text-xs text-[#8696A0]">
@@ -182,34 +192,38 @@ export default function ChatList({
           {!currentUser ? (
             <button
               onClick={onRequireAuth}
-              className="w-full text-left hover:text-white"
+              className="w-full text-left text-sm py-2 px-3 rounded hover:bg-[#202C33] text-gray-200 transition cursor-pointer"
             >
               👤 Login to Chirp
             </button>
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3">
+                <button className="flex items-center gap-3 w-full text-left cursor-pointer hover:bg-[#202C33] p-1.5 rounded transition">
                   <img
                     src={currentUser.avatar || "/default-avatar.jpeg"}
+                    alt={currentUser.displayName || "Avatar"}
                     className="w-10 h-10 rounded-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = "/default-avatar.jpeg";
+                    }}
                   />
-                  <div className="text-left">
-                    <div className="text-sm font-medium">
+                  <div className="text-left min-w-0 flex-1">
+                    <div className="text-sm font-medium truncate">
                       {currentUser.displayName}
                     </div>
-                    <div className="text-xs text-[#8696A0]">
-                      @{currentUser.userName}
+                    <div className="text-xs text-[#8696A0] truncate">
+                      @{currentUser.userName || "user"}
                     </div>
                   </div>
                 </button>
               </DropdownMenuTrigger>
 
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={onEditProfile}>
+                <DropdownMenuItem onClick={onEditProfile} className="cursor-pointer">
                   ✎ Edit Profile
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={onLogout} className="text-red-500">
+                <DropdownMenuItem onClick={onLogout} className="text-red-500 cursor-pointer">
                   ⊗ Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -220,7 +234,7 @@ export default function ChatList({
 
       <div
         onMouseDown={() => (resizing.current = true)}
-        className="w-[4px] cursor-col-resize bg-black"
+        className="w-[4px] cursor-col-resize bg-black hover:bg-[#00A884] transition-colors"
       />
     </>
   );

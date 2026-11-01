@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 
-export default function auth( req, res, next ) {
+export default function auth(req, res, next) {
   const header = req.headers.authorization;
 
   if (!header || !header.startsWith("Bearer ")) {
@@ -11,11 +11,12 @@ export default function auth( req, res, next ) {
   const token = header.split(" ")[1];
 
   if (!token) {
-    res.status(401).json({ msg: "No token string provided" });
+    return res.status(401).json({ msg: "No token string provided" });
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const secret = process.env.JWT_SECRET || "chirp_jwt_secret_dev_key";
+    const decoded = jwt.verify(token, secret);
     req.userId = decoded.userId;
     next();
   } catch (err) {

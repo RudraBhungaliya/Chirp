@@ -5,13 +5,15 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import App from "./App";
 import { AuthProvider } from "./context/authContext";
 import { SocketProvider } from "./context/socketContext";
-import "./index.css"; 
+import "./index.css";
+
+const googleClientId =
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+  "dev-dummy-client-id.apps.googleusercontent.com";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <GoogleOAuthProvider
-      clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}
-    >
+    <GoogleOAuthProvider clientId={googleClientId}>
       <AuthProvider>
         <SocketProvider>
           <App />
@@ -20,4 +22,3 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     </GoogleOAuthProvider>
   </React.StrictMode>
 );
-

@@ -6,6 +6,7 @@ const SocketContext = createContext(null);
 
 export const SocketProvider = ({ children }) => {
   const socketRef = useRef(null);
+  const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const { token } = useAuth();
 
@@ -15,25 +16,28 @@ export const SocketProvider = ({ children }) => {
         socketRef.current.disconnect();
         socketRef.current = null;
       }
+      setSocket(null);
       setIsConnected(false);
       return;
     }
 
     // Create socket connection if it doesn't exist
     if (!socketRef.current) {
-      socketRef.current = connectSocket(token);
+      const s = connectSocket(token);
+      socketRef.current = s;
+      setSocket(s);
 
-      socketRef.current.on("connect", () => {
+      s.on("connect", () => {
         setIsConnected(true);
-        console.log("Socket connected", { uri: socketRef.current?.io?.uri });
+        console.log("Socket connected", { uri: s.io?.uri });
       });
 
-      socketRef.current.on("disconnect", () => {
+      s.on("disconnect", () => {
         setIsConnected(false);
         console.log("Socket disconnected");
       });
 
-      socketRef.current.on("connect_error", (err) => {
+      s.on("connect_error", (err) => {
         console.error("Socket connect_error:", err);
       });
     }
@@ -47,12 +51,13 @@ export const SocketProvider = ({ children }) => {
     if (socketRef.current) {
       socketRef.current.disconnect();
       socketRef.current = null;
+      setSocket(null);
       setIsConnected(false);
     }
   };
 
   return (
-    <SocketContext.Provider value={{ socket: socketRef.current, isConnected, disconnect }}>
+    <SocketContext.Provider value={{ socket, isConnected, disconnect }}>
       {children}
     </SocketContext.Provider>
   );

@@ -120,39 +120,63 @@ Used for **stateful, bi-directional, real-time events** where latency is critica
 
 ## ⚙️ Setup & Installation
 
+### Quick Start (Single Command)
+Install dependencies and run both frontend and backend concurrently from the root directory:
+```bash
+# 1. Install workspace dependencies
+pnpm install
+
+# 2. Run both server (port 5001) & client (port 5173) in dev mode
+pnpm dev
+```
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+> [!NOTE]
+> The backend runs on port `5001` by default to prevent port conflicts with macOS ControlCenter / AirPlay on port `5000`.
+
+### Database Configuration (MongoDB)
+Set your `MONGO_URI` in `server/.env`:
+```env
+MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/Chirp
+```
+Or start a local MongoDB instance with Docker:
+```bash
+docker compose up -d
+```
+
 ### 1. Server Configuration
 Navigate to the server directory:
 ```bash
 cd server
-npm install
+pnpm install
 ```
-Create a `.env` file in the `server/` directory:
+Create a `.env` file in the `server/` directory (or use default created from `.env.example`):
 ```env
-PORT=5000
+PORT=5001
 MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/Chirp
 JWT_SECRET=your_jwt_secret_key
 GOOGLE_CLIENT_ID=your_google_oauth_client_id
-ALLOWED_ORIGINS=http://localhost:5173
+ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000
 ```
 Start the backend server:
 ```bash
-npm run dev
+pnpm dev
 ```
 
 ### 2. Client Configuration
 Navigate to the client directory:
 ```bash
 cd ../client
-npm install
+pnpm install
 ```
 Create a `.env` file in the `client/` directory:
 ```env
+VITE_API_URL=http://localhost:5001
+VITE_SOCKET_URL=http://localhost:5001
 VITE_GOOGLE_CLIENT_ID=your_google_oauth_client_id
-VITE_API_URL=http://localhost:5000
-VITE_SOCKET_URL=http://localhost:5000
 ```
 Start the frontend application:
 ```bash
-npm run dev
+pnpm dev
 ```
 Open [http://localhost:5173](http://localhost:5173) in your browser.
