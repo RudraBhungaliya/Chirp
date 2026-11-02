@@ -28,9 +28,10 @@ export const googleAuth = async (req, res) => {
       user = await User.create({
         googleId: sub,
         email,
-        displayName: name,
-        avatar: picture,
-        isProfileComplete: false,
+        displayName: name || email.split("@")[0],
+        userName: email.split("@")[0].toLowerCase().replace(/[^a-z0-9_]/g, "") + "_" + Math.random().toString(36).substring(2, 6),
+        avatar: picture || "",
+        isProfileComplete: true,
       });
     }
 
@@ -42,7 +43,7 @@ export const googleAuth = async (req, res) => {
     res.json({
       token,
       user,
-      needsProfile: !user.isProfileComplete,
+      needsProfile: false,
     });
   } catch (err) {
     console.error("Google auth failed:", err.message);
@@ -79,7 +80,7 @@ export const devLogin = async (req, res) => {
     res.json({
       token,
       user,
-      needsProfile: !user.isProfileComplete,
+      needsProfile: false,
     });
   } catch (err) {
     console.error("Dev login error:", err);

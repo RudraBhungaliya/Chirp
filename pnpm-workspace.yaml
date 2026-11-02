@@ -4,3 +4,4 @@ packages:
 allowBuilds:
   bcrypt: true
   esbuild: true
+  mongodb-memory-server: true

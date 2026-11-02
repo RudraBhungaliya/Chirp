@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      index: true,
     },
 
     email: {
@@ -14,21 +15,24 @@ const userSchema = new mongoose.Schema(
       unique: true,
       lowercase: true,
       trim: true,
+      index: true,
     },
 
     userName: {
       type: String,
       unique: true,
-      sparse: true, 
+      sparse: true,
       lowercase: true,
       trim: true,
-      minlength: 3,
+      minlength: [3, "Username must be at least 3 characters"],
+      maxlength: [30, "Username must be at most 30 characters"],
     },
 
     displayName: {
       type: String,
       trim: true,
-      maxlength: 50,
+      maxlength: [50, "Display name must be at most 50 characters"],
+      default: "Chirp User",
     },
 
     avatar: {
@@ -38,8 +42,8 @@ const userSchema = new mongoose.Schema(
 
     bio: {
       type: String,
-      maxlength: 160,
-      default: "Hi, I am on Chirp!",
+      maxlength: [160, "Bio must be at most 160 characters"],
+      default: "Hey there! I am using Chirp.",
     },
 
     isProfileComplete: {
@@ -49,16 +53,21 @@ const userSchema = new mongoose.Schema(
 
     isActive: {
       type: Boolean,
-      default: true,
+      default: false,
     },
 
     lastSeen: {
       type: Date,
+      default: Date.now,
     },
   },
   {
     timestamps: true,
   }
 );
+
+// High performance compound indexes for fast search and presence lookups
+userSchema.index({ displayName: 1, userName: 1 });
+userSchema.index({ isActive: 1, lastSeen: -1 });
 
 export default mongoose.model("User", userSchema);

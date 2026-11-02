@@ -11,39 +11,40 @@ export const SocketProvider = ({ children }) => {
   const { token } = useAuth();
 
   useEffect(() => {
-    if (!token) {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+    // Disconnect old socket if token changes or user signs out
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
       setSocket(null);
       setIsConnected(false);
+    }
+
+    if (!token) {
       return;
     }
 
-    // Create socket connection if it doesn't exist
-    if (!socketRef.current) {
-      const s = connectSocket(token);
-      socketRef.current = s;
-      setSocket(s);
+    // Connect new socket for the authenticated user
+    const s = connectSocket(token);
+    socketRef.current = s;
+    setSocket(s);
 
-      s.on("connect", () => {
-        setIsConnected(true);
-        console.log("Socket connected", { uri: s.io?.uri });
-      });
+    s.on("connect", () => {
+      setIsConnected(true);
+    });
 
-      s.on("disconnect", () => {
-        setIsConnected(false);
-        console.log("Socket disconnected");
-      });
+    s.on("disconnect", () => {
+      setIsConnected(false);
+    });
 
-      s.on("connect_error", (err) => {
-        console.error("Socket connect_error:", err);
-      });
-    }
+    s.on("connect_error", (err) => {
+      console.error("Socket connect_error:", err.message);
+    });
 
     return () => {
-      // Don't disconnect on unmount, only when token changes
+      s.disconnect();
+      socketRef.current = null;
+      setSocket(null);
+      setIsConnected(false);
     };
   }, [token]);
 

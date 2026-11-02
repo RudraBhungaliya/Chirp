@@ -33,7 +33,7 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
   };
 
-  const needsProfile = user ? !user.isProfileComplete : false;
+  const needsProfile = false;
 
   return (
     <AuthContext.Provider
