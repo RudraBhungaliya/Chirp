@@ -59,9 +59,11 @@ export const createChat = async (req, res) => {
   }
 };
 
-// Retrieve user's conversation directory sorted by recent activity
+// Retrieve user's conversation directory sorted by recent activity (high-performance single aggregation)
 export const getChats = async (req, res) => {
   try {
+    const userIdObj = new mongoose.Types.ObjectId(req.userId);
+
     const chats = await Chat.find({
       participants: req.userId,
     })
@@ -76,21 +78,37 @@ export const getChats = async (req, res) => {
       .sort({ updatedAt: -1 })
       .lean();
 
-    // Attach real-time unread counts per chat
-    const enhancedChats = await Promise.all(
-      chats.map(async (chat) => {
-        const unreadCount = await Message.countDocuments({
-          chatId: chat._id,
-          sender: { $ne: req.userId },
-          readBy: { $ne: req.userId },
-        });
+    if (!chats.length) {
+      return res.status(200).json([]);
+    }
 
-        return {
-          ...chat,
-          unreadCount,
-        };
-      })
+    const chatIds = chats.map((c) => c._id);
+
+    // Single high-speed aggregation query replacing N+1 sequential count queries
+    const unreadAgg = await Message.aggregate([
+      {
+        $match: {
+          chatId: { $in: chatIds },
+          sender: { $ne: userIdObj },
+          readBy: { $ne: userIdObj },
+        },
+      },
+      {
+        $group: {
+          _id: "$chatId",
+          unreadCount: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const unreadMap = new Map(
+      unreadAgg.map((u) => [String(u._id), u.unreadCount])
     );
+
+    const enhancedChats = chats.map((chat) => ({
+      ...chat,
+      unreadCount: unreadMap.get(String(chat._id)) || 0,
+    }));
 
     res.status(200).json(enhancedChats);
   } catch (err) {

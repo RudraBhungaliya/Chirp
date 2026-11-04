@@ -14,8 +14,22 @@ export default function App() {
   const { socket, disconnect } = useSocket();
 
   const [selectedChat, setSelectedChat] = useState(null);
-  const [chats, setChats] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [chats, setChats] = useState(() => {
+    try {
+      const cached = localStorage.getItem("chirp_cached_chats");
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [users, setUsers] = useState(() => {
+    try {
+      const cached = localStorage.getItem("chirp_cached_users");
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [showAuth, setShowAuth] = useState(false);
   const [showProfileEdit, setShowProfileEdit] = useState(false);
 
@@ -34,7 +48,11 @@ export default function App() {
           },
         });
         const data = await res.json();
-        setUsers(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : [];
+        setUsers(list);
+        try {
+          localStorage.setItem("chirp_cached_users", JSON.stringify(list));
+        } catch {}
       } catch (err) {
         console.error("Error fetching users:", err);
       }
@@ -61,6 +79,9 @@ export default function App() {
         const data = await res.json();
         const list = Array.isArray(data) ? data : [];
         setChats(list);
+        try {
+          localStorage.setItem("chirp_cached_chats", JSON.stringify(list));
+        } catch {}
 
         // Auto-select first chat if available and none selected
         if (list.length > 0 && !selectedChat) {
@@ -251,8 +272,13 @@ export default function App() {
       );
     }
 
-    logout();
+    try {
+      localStorage.removeItem("chirp_cached_chats");
+      localStorage.removeItem("chirp_cached_users");
+    } catch {}
+
     disconnect();
+    logout();
     setSelectedChat(null);
     setChats([]);
     setUsers([]);

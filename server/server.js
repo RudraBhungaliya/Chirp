@@ -8,6 +8,12 @@ import rateLimit from "express-rate-limit";
 import jwt from "jsonwebtoken";
 import { Server } from "socket.io";
 import mongoose from "mongoose";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 import connectDB, { isDbConnected, disconnectDB } from "./config/db.js";
 
@@ -97,7 +103,19 @@ app.use("/api/auth", authLimiter);
 // Payload parsers
 app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ extended: true, limit: "15mb" }));
-app.use("/uploads", express.static("uploads"));
+// Fast media delivery with aggressive HTTP disk caching & CORS
+app.use(
+  "/uploads",
+  express.static("uploads", {
+    maxAge: "30d",
+    etag: true,
+    immutable: true,
+    setHeaders: (res) => {
+      res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+    },
+  })
+);
 
 // Health & Readiness checks
 app.get("/api/health", (req, res) => {
@@ -332,6 +350,35 @@ io.on("connection", async (socket) => {
     console.error("Socket error on connection:", err);
   }
 });
+
+// Serve production frontend build if dist folder exists
+const clientDistPath = path.resolve(__dirname, "../client/dist");
+if (fs.existsSync(clientDistPath)) {
+  console.log(`[Chirp Server] Serving production client build from: ${clientDistPath}`);
+  app.use(
+    express.static(clientDistPath, {
+      maxAge: "1d",
+      setHeaders: (res, filePath) => {
+        if (filePath.includes("/assets/")) {
+          // Vite hashed bundles are immutable and safely cached for 1 year
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+      },
+    })
+  );
+
+  app.use((req, res, next) => {
+    if (
+      req.method !== "GET" ||
+      req.path.startsWith("/api") ||
+      req.path.startsWith("/uploads") ||
+      req.path.startsWith("/socket.io")
+    ) {
+      return next();
+    }
+    res.sendFile(path.join(clientDistPath, "index.html"));
+  });
+}
 
 export { io };
 

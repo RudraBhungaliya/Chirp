@@ -68,6 +68,9 @@ const messageSchema = new mongoose.Schema(
 
 // Compound index for reverse-chronological cursor pagination (sub-millisecond retrieval)
 messageSchema.index({ chatId: 1, createdAt: -1 });
+messageSchema.index({ chatId: 1, clientId: 1 }, { unique: true, sparse: true });
+messageSchema.index({ chatId: 1, sender: 1, readBy: 1 });
+messageSchema.index({ sender: 1, createdAt: -1 });
 
 // TTL expiration index for auto-purging temporary attachments
 messageSchema.index({ "file.expiresAt": 1 }, { expireAfterSeconds: 0 });

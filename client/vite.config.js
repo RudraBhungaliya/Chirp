@@ -24,9 +24,27 @@ export default defineConfig({
         target: "http://localhost:5001",
         changeOrigin: true,
       },
+      "/uploads": {
+        target: "http://localhost:5001",
+        changeOrigin: true,
+      },
       "/socket.io": {
         target: "http://localhost:5001",
         ws: true,
+      },
+    },
+  },
+  build: {
+    outDir: "dist",
+    sourcemap: false,
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom"],
+          lucide: ["lucide-react"],
+          socket: ["socket.io-client"],
+        },
       },
     },
   },

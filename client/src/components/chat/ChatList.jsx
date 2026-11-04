@@ -233,7 +233,9 @@ export default function ChatList({
                     <img
                       src={getAvatar(itemUser.avatar)}
                       alt={itemUser.displayName || "Avatar"}
-                      className="w-12 h-12 rounded-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                      className="w-12 h-12 rounded-full object-cover bg-[#202C33]"
                       onError={(e) => {
                         e.currentTarget.src = DEFAULT_AVATAR;
                       }}
@@ -342,7 +344,9 @@ export default function ChatList({
                     <img
                       src={getAvatar(currentUser.avatar)}
                       alt={currentUser.displayName || "Avatar"}
-                      className="w-10 h-10 rounded-full object-cover shrink-0"
+                      loading="lazy"
+                      decoding="async"
+                      className="w-10 h-10 rounded-full object-cover shrink-0 bg-[#202C33]"
                       onError={(e) => {
                         e.currentTarget.src = DEFAULT_AVATAR;
                       }}

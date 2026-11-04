@@ -58,11 +58,25 @@ const formatLastSeen = (lastSeen) => {
   return `last seen ${last.toLocaleDateString()}`;
 };
 
+// Module-level in-memory conversation cache (persists across chat switching for 0ms instant loading)
+const chatMessagesCache = new Map();
+
+const setCachedMessages = (chatId, updater) => {
+  if (!chatId) return;
+  const current = chatMessagesCache.get(chatId) || [];
+  const next = typeof updater === "function" ? updater(current) : updater;
+  chatMessagesCache.set(chatId, next);
+};
+
 export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
   const { token } = useAuth();
   const { socket } = useSocket();
 
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => {
+    return chat?._id && chatMessagesCache.has(chat._id)
+      ? chatMessagesCache.get(chat._id)
+      : [];
+  });
   const [input, setInput] = useState("");
   const [pendingFile, setPendingFile] = useState(null);
 
@@ -72,11 +86,16 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
 
   const API = import.meta.env.VITE_API_URL || "";
 
-  /* ================= FETCH MESSAGES ================= */
+  /* ================= FETCH / REVALIDATE MESSAGES (SWR PATTERN) ================= */
   useEffect(() => {
     if (!chat?._id || !token) {
       setMessages([]);
       return;
+    }
+
+    // 0ms instant render from memory cache
+    if (chatMessagesCache.has(chat._id)) {
+      setMessages(chatMessagesCache.get(chat._id));
     }
 
     let cancelled = false;
@@ -94,27 +113,35 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
 
         const rawList = Array.isArray(data) ? data : data.messages || [];
 
-        setMessages(
-          rawList.map((m) => ({
-            id: m._id,
-            clientId: m.clientId || null,
-            senderId: m.sender?._id || m.sender,
-            senderName: m.sender?.displayName || "User",
-            senderAvatar: m.sender?.avatar || "",
-            type: m.type || "text",
-            text: m.content,
-            file: m.file,
-            status: m.status || (m.readBy?.length > 1 ? "read" : "sent"),
-            deleted: Boolean(m.deleted),
-            timestamp: new Date(m.createdAt).getTime(),
-          }))
-        );
+        const serverMessages = rawList.map((m) => ({
+          id: m._id,
+          clientId: m.clientId || null,
+          senderId: m.sender?._id || m.sender,
+          senderName: m.sender?.displayName || "User",
+          senderAvatar: m.sender?.avatar || "",
+          type: m.type || "text",
+          text: m.content,
+          file: m.file,
+          status: m.status || (m.readBy?.length > 1 ? "read" : "sent"),
+          deleted: Boolean(m.deleted),
+          timestamp: new Date(m.createdAt).getTime(),
+        }));
+
+        setMessages((prev) => {
+          // Retain any pending optimistic messages that haven't been confirmed yet
+          const pendingOptimistic = prev.filter(
+            (p) => p.clientId && !serverMessages.some((s) => s.clientId === p.clientId || s.id === p.id)
+          );
+          const merged = [...serverMessages, ...pendingOptimistic];
+          chatMessagesCache.set(chat._id, merged);
+          return merged;
+        });
 
         if (socket) {
           socket.emit("mark_read", { chatId: chat._id });
         }
       } catch (err) {
-        console.error("Fetch messages error:", err);
+        console.warn("Fetch messages notice:", err.message);
       }
     })();
 
@@ -130,8 +157,6 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
     socket.emit("join_chat", chat._id);
 
     const handleNewMessage = (m) => {
-      if (m.chatId !== chat._id) return;
-
       const serverMsg = {
         id: m._id,
         clientId: m.clientId || null,
@@ -145,6 +170,19 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
         deleted: Boolean(m.deleted),
         timestamp: new Date(m.createdAt).getTime(),
       };
+
+      // Always update cache for m.chatId even when user is viewing another chat
+      setCachedMessages(m.chatId, (prev) => {
+        if (prev.some((x) => x.id === serverMsg.id)) {
+          return prev.map((x) => (x.id === serverMsg.id ? serverMsg : x));
+        }
+        if (serverMsg.clientId && prev.some((x) => x.clientId === serverMsg.clientId)) {
+          return prev.map((x) => (x.clientId === serverMsg.clientId ? serverMsg : x));
+        }
+        return [...prev, serverMsg];
+      });
+
+      if (m.chatId !== chat._id) return;
 
       setMessages((prev) => {
         // If message with same server id already exists, update it in place
@@ -176,11 +214,21 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
           }
         }
 
-        return [...prev, serverMsg];
+        const updated = [...prev, serverMsg];
+        chatMessagesCache.set(chat._id, updated);
+        return updated;
       });
     };
 
     const handleMessageDeleted = ({ chatId, messageId }) => {
+      setCachedMessages(chatId, (prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? { ...m, deleted: true, text: "This message was deleted", file: null }
+            : m
+        )
+      );
+
       if (chatId !== chat._id) return;
       setMessages((prev) =>
         prev.map((m) =>
@@ -232,7 +280,7 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
         ? {
             name: currentFile.file.name,
             mime: currentFile.file.type,
-            data: currentFile.base64,
+            previewUrl: currentFile.previewUrl,
             size: currentFile.file.size,
           }
         : null,
@@ -241,7 +289,11 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
       timestamp: Date.now(),
     };
 
-    setMessages((prev) => [...prev, optimisticMsg]);
+    setMessages((prev) => {
+      const updated = [...prev, optimisticMsg];
+      chatMessagesCache.set(chat._id, updated);
+      return updated;
+    });
     setInput("");
     setPendingFile(null);
 
@@ -263,8 +315,8 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
 
         if (res.ok) {
           const saved = await res.json();
-          setMessages((prev) =>
-            prev.map((m) =>
+          setMessages((prev) => {
+            const updated = prev.map((m) =>
               m.clientId === clientId
                 ? {
                     id: saved._id,
@@ -280,8 +332,10 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
                     timestamp: new Date(saved.createdAt).getTime(),
                   }
                 : m
-            )
-          );
+            );
+            chatMessagesCache.set(chat._id, updated);
+            return updated;
+          });
         }
       } else {
         const res = await fetch(`${API}/api/message/${chat._id}`, {
@@ -298,8 +352,8 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
 
         if (res.ok) {
           const saved = await res.json();
-          setMessages((prev) =>
-            prev.map((m) =>
+          setMessages((prev) => {
+            const updated = prev.map((m) =>
               m.clientId === clientId
                 ? {
                     id: saved._id,
@@ -315,8 +369,10 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
                     timestamp: new Date(saved.createdAt).getTime(),
                   }
                 : m
-            )
-          );
+            );
+            chatMessagesCache.set(chat._id, updated);
+            return updated;
+          });
         }
       }
     } catch (err) {
@@ -325,7 +381,7 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
   };
 
   /* ================= FILE SELECT (PHOTOS / AUDIO / VIDEO) ================= */
-  const handleFileSelect = async (e) => {
+  const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -339,11 +395,12 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
     else if (file.type.startsWith("video/")) type = "video";
     else if (file.type.startsWith("audio/")) type = "audio";
 
-    const base64 = await fileToBase64(file);
+    // Instant 0ms object URL preview without memory bloat
+    const previewUrl = URL.createObjectURL(file);
     setPendingFile({
       file,
       type,
-      base64,
+      previewUrl,
       name: file.name,
       size: (file.size / 1024 / 1024).toFixed(2),
     });
@@ -363,13 +420,15 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
       });
 
       if (res.ok) {
-        setMessages((prev) =>
-          prev.map((m) =>
+        setMessages((prev) => {
+          const updated = prev.map((m) =>
             m.id === messageId
               ? { ...m, deleted: true, text: "This message was deleted", file: null }
               : m
-          )
-        );
+          );
+          chatMessagesCache.set(chat._id, updated);
+          return updated;
+        });
       }
     } catch (err) {
       console.error("Delete message error:", err);
@@ -425,16 +484,17 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
     }
 
     // Media (Photo, Video, Audio, File)
-    const isLocalPreview = Boolean(msg.file?.data);
-    const mediaUrl = isLocalPreview ? msg.file.data : `${API}${msg.file.url}`;
+    const mediaUrl = msg.file?.previewUrl || msg.file?.data || (msg.file?.url ? `${API}${msg.file.url}` : "");
 
     if (msg.type === "image") {
       return (
         <div className="space-y-1">
           <img
             src={mediaUrl}
-            alt={msg.file.name || "Photo"}
-            className="rounded-lg max-w-xs md:max-w-sm max-h-72 object-cover cursor-pointer hover:opacity-95 transition"
+            alt={msg.file?.name || "Photo"}
+            loading="lazy"
+            decoding="async"
+            className="rounded-lg max-w-xs md:max-w-sm max-h-72 object-cover cursor-pointer hover:opacity-95 transition bg-[#182229]"
             onClick={() => window.open(mediaUrl, "_blank")}
           />
           {msg.text && (
@@ -451,6 +511,7 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
         <div className="space-y-1">
           <video
             controls
+            preload="metadata"
             src={mediaUrl}
             className="rounded-lg max-w-xs md:max-w-sm max-h-72 bg-black"
           />
@@ -466,7 +527,7 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
     if (msg.type === "audio") {
       return (
         <div className="space-y-1">
-          <audio controls src={mediaUrl} className="max-w-xs h-9" />
+          <audio controls preload="metadata" src={mediaUrl} className="max-w-xs h-9" />
           {msg.text && (
             <p className="text-[14px] leading-relaxed text-[#E9EDEF] mt-1">
               {msg.text}
@@ -526,7 +587,8 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
             <img
               src={getAvatar(headerUser.avatar)}
               alt={headerUser.displayName || "Avatar"}
-              className="w-10 h-10 rounded-full object-cover shrink-0 cursor-pointer"
+              decoding="async"
+              className="w-10 h-10 rounded-full object-cover shrink-0 cursor-pointer bg-[#202C33]"
               onError={(e) => {
                 e.currentTarget.src = DEFAULT_AVATAR;
               }}
@@ -682,9 +744,17 @@ export default function ChatWindow({ chat, user, users = [], onRequireAuth }) {
       {pendingFile && (
         <div className="px-4 py-2 bg-[#182229] border-t border-[#222D34] flex items-center justify-between z-10">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded bg-[#202C33] flex items-center justify-center text-[#00A884]">
-              <FileText className="w-5 h-5" />
-            </div>
+            {pendingFile.type === "image" && pendingFile.previewUrl ? (
+              <img
+                src={pendingFile.previewUrl}
+                alt="Preview"
+                className="w-10 h-10 rounded object-cover border border-[#2A3942]"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded bg-[#202C33] flex items-center justify-center text-[#00A884]">
+                <FileText className="w-5 h-5" />
+              </div>
+            )}
             <div>
               <p className="text-xs text-[#E9EDEF] font-medium truncate max-w-xs">
                 {pendingFile.name}
